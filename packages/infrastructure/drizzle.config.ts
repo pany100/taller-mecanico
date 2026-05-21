@@ -1,13 +1,9 @@
-import { resolve } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
-
-const envPath = resolve(import.meta.dirname, '../../.env');
-process.loadEnvFile(envPath);
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   throw new Error(
-    `DATABASE_URL is not defined. Expected it in ${envPath}.`,
+    'DATABASE_URL is not defined. Run the script via pnpm db:generate / db:migrate so Node loads ../../.env.',
   );
 }
 

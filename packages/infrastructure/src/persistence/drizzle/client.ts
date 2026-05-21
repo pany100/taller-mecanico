@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import * as schema from './schema';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -10,6 +11,4 @@ if (!connectionString) {
 
 const pool = new Pool({ connectionString });
 
-// When the schema is added, pass it as the second argument:
-// drizzle(pool, { schema }) to enable typed relational queries.
-export const db = drizzle(pool);
+export const db = drizzle(pool, { schema });

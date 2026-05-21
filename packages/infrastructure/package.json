@@ -10,7 +10,9 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs migrate"
   },
   "dependencies": {
     "@taller/application": "workspace:*",

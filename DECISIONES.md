@@ -46,6 +46,8 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-20** · [Runner de tests: Vitest](#2026-05-20--runner-de-tests-vitest)
 - **2026-05-20** · [Límite application↔web: DTOs de salida](#2026-05-20--límite-applicationweb-dtos-de-salida)
 - **2026-05-20** · [web no depende de domain (ni tipos); DTOs los define application](#2026-05-20--web-no-depende-de-domain-ni-tipos-dtos-los-define-application)
+- **2026-05-20** · [Versiones del stack (bootstrap)](#2026-05-20--versiones-del-stack-bootstrap)
+- **2026-05-20** · [ESLint pineado a v9 (no v10)](#2026-05-20--eslint-pineado-a-v9-no-v10)
 
 ---
 
@@ -971,6 +973,37 @@ puntual viven en `web` y se mapean desde esos DTOs.
 
 Modifica la regla de boundaries propuesta en el bootstrap, que dejaba
 este punto como "revisable".
+
+---
+
+## 2026-05-20 · Versiones del stack (bootstrap)
+
+**Qué decidimos**: versiones pegadas en el bootstrap del esqueleto.
+Runtime: Node 22.22.3, pnpm 11.1.3. Stack: Next 16.2.6, React 19.2.6,
+TypeScript 6.0.3, ESLint 9.39.4 (ver entrada aparte sobre el pin),
+Vitest 4.1.6, Prettier 3.8.3, eslint-plugin-boundaries 6.0.2. Criterio:
+`@latest` de cada uno al momento del bootstrap.
+
+**Por qué**: arrancar en lo estable más reciente evita migraciones
+tempranas y arrastrar vulnerabilidades ya parcheadas. Next 16 (no 15)
+es la rama estable actual.
+
+**Qué descartamos**: Next 15 (versión anterior, ya superada).
+
+---
+
+## 2026-05-20 · ESLint pineado a v9 (no v10)
+
+**Qué decidimos**: ESLint queda en v9 (9.39.4), no v10, pese a que v10
+ya salió.
+
+**Por qué**: `eslint-config-next@16.2.6` arrastra
+`eslint-plugin-react@7.37.5`, que usa una API removida en ESLint 10
+(`context.getFilename()`) y crashea. Es un bug del ecosistema de Next,
+no del proyecto. No vale la pena pelearlo.
+
+**Qué descartamos**: forzar ESLint 10 ahora. Se revisa y se sube cuando
+Next publique un config compatible con v10.
 
 ---
 

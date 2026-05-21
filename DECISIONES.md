@@ -48,6 +48,10 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-20** · [web no depende de domain (ni tipos); DTOs los define application](#2026-05-20--web-no-depende-de-domain-ni-tipos-dtos-los-define-application)
 - **2026-05-20** · [Versiones del stack (bootstrap)](#2026-05-20--versiones-del-stack-bootstrap)
 - **2026-05-20** · [ESLint pineado a v9 (no v10)](#2026-05-20--eslint-pineado-a-v9-no-v10)
+- **2026-05-21** · [Postgres local con Docker Compose](#2026-05-21--postgres-local-con-docker-compose)
+- **2026-05-21** · [Cableado de Drizzle](#2026-05-21--cableado-de-drizzle)
+- **2026-05-21** · [Idioma de carpetas vs. idioma del negocio](#2026-05-21--idioma-de-carpetas-vs-idioma-del-negocio)
+- **2026-05-21** · [Idioma del código: genérico vs. propio del dominio](#2026-05-21--idioma-del-código-genérico-vs-propio-del-dominio)
 
 ---
 
@@ -1004,6 +1008,130 @@ no del proyecto. No vale la pena pelearlo.
 
 **Qué descartamos**: forzar ESLint 10 ahora. Se revisa y se sube cuando
 Next publique un config compatible con v10.
+
+---
+
+## 2026-05-21 · Postgres local con Docker Compose
+
+**Qué decidimos**: el Postgres de desarrollo corre en un contenedor
+gestionado por `docker-compose.yml` en la raíz. Imagen pineada
+(`postgres:18`), volumen nombrado (`taller_pgdata`) para la persistencia,
+puerto `5432:5432`, credenciales vía variables tomadas de un `.env` no
+commiteado. Se versiona un `.env.example` con placeholders.
+
+**Por qué**: el compose es un contrato reproducible y versionado, a
+diferencia de un `docker run` con flags que vive en la memoria o en un
+README que se desactualiza. Pinear la major evita sorpresas al cambiar de
+máquina (mismo criterio que el resto del stack). El volumen nombrado lo
+gestiona Docker y no ensucia el árbol del repo ni se cuela en git. El 5432
+está libre en la máquina de desarrollo, así que no hace falta aislar puerto.
+
+**Qué descartamos**: `docker run` suelto (no reproducible), `latest` sin
+pin (cambios silenciosos de versión), bind-mount a una carpeta del repo
+(riesgo de commitear datos), Postgres nativo (más fricción de setup que un
+contenedor descartable).
+
+**Nota (mismo día)**: el volumen se monta en `/var/lib/postgresql`, no en
+`/var/lib/postgresql/data`. Desde Postgres 18 la imagen oficial cambió la
+convención: los datos viven en un subdirectorio por major version
+(`/var/lib/postgresql/18/docker`) y el mount va al directorio padre. Montar
+en la ruta vieja (`/data`) hace que el contenedor aborte en el arranque.
+
+---
+
+## 2026-05-21 · Cableado de Drizzle
+
+**Qué decidimos**: cómo se integra Drizzle, en cuatro puntos.
+
+- **Layout**: todo Drizzle vive en `packages/infrastructure`. El
+  `drizzle.config.ts` (tooling de drizzle-kit) va en la raíz del paquete;
+  el cliente de conexión runtime (`cliente.ts`), el schema partido por
+  entidad y las migraciones van bajo `src/persistencia/drizzle/`.
+- **Driver**: `node-postgres` (`pg`).
+- **Migraciones**: workflow `generate` + `migrate` (SQL versionado y
+  revisado), no `push`.
+- **Mapeo de nombres**: explícito por campo (`timestamp('creado_en')`),
+  no el helper `casing`.
+
+**Por qué**:
+
+- Drizzle es el adapter que implementa los puertos de persistencia, así
+  que su lugar es infrastructure. Config (dev/tooling) y cliente (runtime)
+  se separan para no acoplar las migraciones al código de ejecución.
+- `pg` es el estándar con más material: cuando algo falle, la primera
+  respuesta online aplica. La velocidad de `postgres.js` es invisible a
+  esta escala, y el driver está detrás del puerto, así que cambiarlo es
+  barato.
+- `generate` + `migrate` deja cada cambio de schema como SQL revisable y
+  commiteado, misma lógica de historial que esta bitácora. El SQL
+  generado se revisa antes de aplicar (Drizzle puede generar migraciones
+  destructivas, ej. rename interpretado como drop + add).
+- El mapeo explícito hace que lo que se ve en el schema sea lo que existe
+  en la DB, sin una regla de conversión mental de por medio.
+
+**Qué descartamos**: `postgres.js` (menos material, beneficio de
+velocidad nulo a esta escala), `push` (sin historial), `casing:
+'snake_case'` (esconde el nombre real de la columna en la config).
+
+---
+
+## 2026-05-21 · Idioma de carpetas vs. idioma del negocio
+
+**Qué decidimos**: precisar la frontera del idioma en el código.
+
+- **Estructura técnica** (nombres de capas y carpetas internas) en
+  **inglés**: `infrastructure`, `persistence`, `migrations`,
+  `repositories`, `schema`, `client`, etc.
+- **Negocio / lenguaje ubicuo** en **español**: nombres de entidades,
+  tablas, columnas, casos de uso y los archivos que los contienen
+  (`persona.ts`, `usuario.ts`).
+
+**Por qué**: los nombres de capas y piezas técnicas son vocabulario de
+arquitectura, no del negocio; mantenerlos en inglés alinea el proyecto
+con la literatura estándar (hexagonal, Drizzle) y con el material de
+aprendizaje. El español queda reservado para el lenguaje ubicuo, que es
+donde aporta valor real: que el código hable el idioma del taller.
+
+**Qué descartamos**: traducir todo a español (aleja del vocabulario
+canónico que se lee en libros y artículos), y dejar la mezcla librada al
+azar (lo que venía pasando: inconsistente e injustificable).
+
+Refina la decisión de "Convenciones de código y schema", que solo cubría
+el idioma del negocio sin hablar de la estructura técnica.
+
+---
+
+## 2026-05-21 · Idioma del código: genérico vs. propio del dominio
+
+**Qué decidimos**: afinar la frontera del idioma. La línea no es
+"estructura técnica vs. negocio", sino **genérico vs. propio del dominio**.
+
+- **Inglés**: todo lo que existiría en cualquier sistema sin importar el
+  rubro: carpetas (`infrastructure`, `persistence`, `repositories`),
+  interfaces y clases técnicas (`IdGenerator`), y los métodos de plomería
+  como los del repositorio (`save`, `findById`, `delete`).
+- **Español**: todo lo propio del taller, sustantivos **y verbos**: las
+  entidades y sus campos (`Persona`, `Usuario`), y las acciones de negocio
+  del dominio (`registrarRepuesto`, `cambiarPassword`, `aceptarInvitacion`).
+
+Test mental: **¿esto lo entendería alguien del taller?** Si sí, español
+(sea sustantivo o verbo). Si es plomería que existe en cualquier app,
+inglés.
+
+**Por qué**: traducir un verbo de negocio rompe el lenguaje ubicuo tanto
+como traducir el sustantivo: `registerReplacement` no es lo que dice un
+mecánico, `registrarRepuesto` sí. La acción de negocio es parte del
+dominio, no es plomería. A la vez, el código genérico no gana nada con el
+español y sí pierde alineación con la literatura y las librerías.
+
+**Qué descartamos**: la frontera anterior ("estructura técnica en inglés,
+negocio en español"), que dejaba afuera las acciones de dominio y obligaba
+a conjugar verbos de negocio en inglés. También se descartó traducir el
+plumbing genérico a español (no aporta y desalinea).
+
+Corrige la decisión "Idioma de carpetas vs. idioma del negocio" del mismo
+día: la estructura técnica sigue en inglés, pero el criterio rector ahora
+es genérico vs. dominio, lo que suma las acciones de negocio al español.
 
 ---
 

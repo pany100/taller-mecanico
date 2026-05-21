@@ -76,6 +76,12 @@ plantearlo en vez de ignorarla.
 - **Idioma**: todo en español, incluyendo nombres de tablas, columnas,
   entidades, variables y funciones. El dominio es 100% argentino y el
   lenguaje ubicuo funciona si el código habla el idioma del negocio.
+- **Idioma — genérico vs. dominio**: el código genérico (carpetas,
+  interfaces y clases técnicas, métodos de plomería como `save`/`findById`)
+  va en **inglés**. Lo propio del taller va en **español**, sustantivos y
+  verbos: entidades, campos y acciones de negocio (`Persona`, `Usuario`,
+  `registrarRepuesto`, `cambiarPassword`). Test: ¿lo entendería alguien del
+  taller? Sí → español; plomería genérica → inglés.
 - **Base de datos**: `snake_case` para tablas y columnas
   (`creado_en`, `expira_en`).
 - **TypeScript**: `camelCase` para propiedades y variables

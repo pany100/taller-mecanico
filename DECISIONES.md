@@ -13,7 +13,7 @@ Listado cronológico de decisiones. Las de **[Fase de diseño]** se tomaron
 antes de empezar a registrar fechas; de ahí en adelante cada entrada
 lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 
-- **** · [Índice](#índice)
+- \*\*\*\* · [Índice](#índice)
 - **[Fase de diseño]** · [Modo de trabajo](#fase-de-diseño--modo-de-trabajo)
 - **[Fase de diseño]** · [Bitácora de decisiones (DECISIONES.md)](#fase-de-diseño--bitácora-de-decisiones-decisionesmd)
 - **[Fase de diseño]** · [Stack base: Next.js fullstack con dominio aislado](#fase-de-diseño--stack-base-nextjs-fullstack-con-dominio-aislado)
@@ -44,10 +44,10 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-20** · [TypeScript: config base estricta](#2026-05-20--typescript-config-base-estricta)
 - **2026-05-20** · [Lint y formato: ESLint + Prettier](#2026-05-20--lint-y-formato-eslint--prettier)
 - **2026-05-20** · [Runner de tests: Vitest](#2026-05-20--runner-de-tests-vitest)
+- **2026-05-20** · [Límite application↔web: DTOs de salida](#2026-05-20--límite-applicationweb-dtos-de-salida)
+- **2026-05-20** · [web no depende de domain (ni tipos); DTOs los define application](#2026-05-20--web-no-depende-de-domain-ni-tipos-dtos-los-define-application)
+
 ---
-
-
-
 
 ## [Fase de diseño] · Modo de trabajo
 
@@ -126,6 +126,7 @@ desde el día uno (sobreingeniería prematura), Nx (más complejo y opinado).
 **Qué decidimos**: PostgreSQL como motor de base de datos.
 
 **Por qué**:
+
 - Migraciones transaccionales: una migración que falla no deja el schema
   a medio aplicar. MySQL no tiene esto.
 - Tipos JSONB y UUID nativos (utilidad menor pero real).
@@ -133,6 +134,7 @@ desde el día uno (sobreingeniería prematura), Nx (más complejo y opinado).
   Postgres), mejor material de aprendizaje, mejor empleabilidad.
 
 **Qué descartamos**:
+
 - MySQL: válido técnicamente, hubiera facilitado la migración de datos
   desde la DB vieja, pero perdemos los beneficios de Postgres y el
   rewrite es justo la oportunidad de no arrastrar decisiones viejas.
@@ -147,6 +149,7 @@ desde el día uno (sobreingeniería prematura), Nx (más complejo y opinado).
 **Qué decidimos**: Drizzle como ORM.
 
 **Por qué**:
+
 - Empuja a pensar en SQL (objetivo de aprendizaje).
 - Aislarlo detrás de un puerto (hexagonal) es más natural que Prisma.
 - Más simple conceptualmente: menos magia, menos generación de código.
@@ -160,6 +163,7 @@ pero abstrae demasiado el SQL e impone convenciones que pelean con hexagonal.
 ## [Fase de diseño] · Convenciones de código y schema
 
 **Qué decidimos**:
+
 - **Idioma**: todo en español, incluyendo nombres de tablas, columnas y
   entidades. `creado_en`, `actualizado_en`, `expira_en`, `creada_por`, etc.
 - **DB**: `snake_case` para nombres de columnas y tablas.
@@ -181,6 +185,7 @@ capa (subjetivo, lleva a discusiones).
 ## [Fase de diseño] · Estrategia de testing
 
 **Qué decidimos**: pirámide de tests con foco distinto por capa.
+
 - **Dominio**: cobertura alta con tests unitarios. Sin DB, sin mocks pesados.
 - **Aplicación**: tests unitarios de cada caso de uso con repositorios en
   memoria.
@@ -203,18 +208,20 @@ mal pensados son peores que pocos bien pensados). Escribir tests al final
 
 **Qué decidimos**: cuatro entidades separadas, no una con flags ni varias
 duplicadas.
+
 - **Persona**: identidad base con datos personales (nombre, etc).
 - **Cliente / Colaborador / Proveedor**: relaciones de negocio que
   referencian a Persona. Una Persona puede tener varias o ninguna.
 - **Usuario**: credencial de acceso al sistema, asociada a una Persona.
 
-**Por qué**: una persona no *es* cliente ni colaborador, *tiene* distintas
+**Por qué**: una persona no _es_ cliente ni colaborador, _tiene_ distintas
 relaciones con el taller. Una persona que es cliente y colaborador (común
 en el negocio real) vive en una sola fila de Persona y tiene dos relaciones
 separadas. Si cambia el teléfono, un solo update. Si renuncia, se borra
 solo el Colaborador, la Persona y el Cliente quedan.
 
 **Qué descartamos**:
+
 - **Tres entidades separadas (Cliente, Colaborador, Proveedor) cada una
   con sus datos personales**: causa duplicación e inconsistencia.
 - **Una sola entidad Persona con flags `es_cliente`, `es_colaborador`**:
@@ -240,6 +247,7 @@ ordenar alfabéticamente por apellido, pero no es crítico para este sistema.
 ## [Fase de diseño] · Timestamps y auditoría
 
 **Qué decidimos**: niveles de auditoría según tipo de entidad.
+
 - **Nivel 1 (todas las entidades)**: `creadoEn`, `actualizadoEn`.
   No negociable.
 - **Nivel 2 (entidades sensibles: Usuario, Orden, Venta, Pago, Stock)**:
@@ -295,6 +303,7 @@ atacante descubra qué emails están registrados (enumeración de usuarios).
 Cambiar password con password actual es distinto de resetear con token.
 
 **Qué descartamos**:
+
 - Auto-registro abierto.
 - `DesactivarUsuario` y gestión de usuarios en Etapa 0: se hará como
   módulo aparte cuando se modele Colaborador.
@@ -323,6 +332,7 @@ hexagonal aporta de fondo.
 ## [Fase de diseño] · Autenticación técnica: sesiones server-side rodantes
 
 **Qué decidimos**:
+
 - **Sesiones server-side**, no JWT. Token random opaco en cookie, registro
   en DB con `usuarioId` y `expiraEn`.
 - **Duración**: 7 días.
@@ -331,6 +341,7 @@ hexagonal aporta de fondo.
   uno, para preparar masquerade futuro sin tener que migrar después.
 
 **Por qué**:
+
 - Sesiones server-side permiten revocación inmediata (un `DELETE` en DB)
   y cambios de rol/permisos con efecto inmediato. JWT son problemáticos
   para revocar.
@@ -357,6 +368,7 @@ con Argon2 es marginal. Si en el futuro se quiere migrar a Argon2, es
 factible mediante migración progresiva (re-hashear en cada login).
 
 **Qué descartamos**:
+
 - MD5, SHA-1, SHA-256, etc: funciones rápidas, inseguras para passwords.
 - Argon2: más moderno, recomendado por OWASP, pero más complejo de
   configurar bien. No vale la pena hoy.
@@ -371,6 +383,7 @@ guardarlo, validar cookies, etc), sin librería como Auth.js. Usar Lucia
 y guías de OWASP como referencia.
 
 **Por qué**:
+
 - Objetivo principal del proyecto es aprender. Auth.js oculta el 70% del
   trabajo, que es justo lo que se quiere entender.
 - Encaja con arquitectura hexagonal (Auth.js impone su propio schema y
@@ -381,6 +394,7 @@ y guías de OWASP como referencia.
   odisea.
 
 **Qué descartamos**:
+
 - **Auth.js (NextAuth)**: muy popular pero oculta lo que queremos aprender.
 - **Lucia (como librería)**: se está deprecando como librería; sus guías
   siguen siendo referencia válida.
@@ -394,6 +408,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## [Fase de diseño] · Manual de marca: white-label nivel 1
 
 **Qué decidimos**:
+
 - Solo **nombre** y **logo** son configurables por instalación. Paleta y
   resto del diseño son fijos.
 - Dirección visual: **tech moderno con acento industrial sutil**. Base
@@ -404,6 +419,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 - Idioma: español argentino.
 
 **Por qué**:
+
 - White-label nivel 1 es lo más simple suficiente para que el sistema sea
   reutilizable.
 - shadcn da estética Linear-like por defecto, no impone Material Design,
@@ -414,6 +430,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   técnico oficial Bosch.
 
 **Qué descartamos**:
+
 - Material UI: estética Material (Android-like), difícil de personalizar
   fuera de su look. No coherente con la dirección visual elegida.
 - White-label niveles 2 (colores configurables) y 3 (textos completos):
@@ -425,6 +442,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## 2026-05-20 · Sistema de tokens de color
 
 **Qué decidimos**:
+
 - **Paleta cruda** (`primary-50` a `primary-800`, `n-0` a `n-900`, pares
   `fg/bg` para semánticos): vive en `globals.css`, no la consume la
   aplicación directamente.
@@ -440,6 +458,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   `MANUAL-DE-MARCA.md`.
 
 **Por qué**:
+
 - La propuesta original tenía `info` y `primary` con el mismo hex exacto.
   Es un bug semántico: un toast info y cualquier énfasis brand quedan
   indistinguibles, y los badges info dentro de bloques con énfasis primary
@@ -454,6 +473,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   white-label nivel 2 (paleta configurable) sin refactor.
 
 **Qué descartamos**:
+
 - Solo paleta cruda en la app (`bg-primary-600`). Cada dev decidiría qué
   escalón es "el correcto" para texto secundario; en seis meses tres
   grises distintos compitiendo en el mismo formulario.
@@ -468,6 +488,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## 2026-05-20 · Estados de foco, sombras y elevación
 
 **Qué decidimos**:
+
 - **Focus visible** en las 4 variantes de botón: ring `2px primary-500`
   con offset `2px`. Implementado con `outline` (no `box-shadow`) para
   respetar border-radius en el offset. `focus-visible`, no `focus`: el
@@ -479,6 +500,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   original se elimina del sistema.
 
 **Por qué**:
+
 - Botones sin focus visible son un bug de accesibilidad concreto: un
   admin que navega con Tab no ve dónde está parado. WCAG 2.4.7 lo
   exige. Los inputs ya tenían focus ring; los botones no — inconsistente.
@@ -491,6 +513,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   cards con sombra, otras no, sin criterio claro).
 
 **Qué descartamos**:
+
 - Ring color por variante (rojo en destructive, etc.): "más armónico"
   pero obliga a un token de ring por variante. Cuatro decisiones donde
   alcanza una.
@@ -508,6 +531,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## 2026-05-20 · Botones, toasts y densidad de controles
 
 **Qué decidimos**:
+
 - **4 variantes de botón**: `primary`, `secondary` (outline), `destructive`,
   `ghost`. **Sin variante `link`**.
 - **Regla mecánica para links vs botones**: si cambia la URL → `<a>` con
@@ -524,6 +548,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   anulación, ajuste de stock); errores y warnings siempre persistentes.
 
 **Por qué**:
+
 - La variante `link` mezclaba tres cosas distintas (link de navegación,
   link auxiliar, "acción que parece link"). Sin la variante, la decisión
   es mecánica: URL o no. Reduce ambigüedad sin perder casos de uso (los
@@ -542,6 +567,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   confirmación.
 
 **Qué descartamos**:
+
 - 5 variantes de botón con `link` aparte. La variante existe en shadcn
   por inercia, pero abre la puerta a inconsistencias accesibles.
 - Múltiples tamaños (`sm`, `md`, `lg`) como sistema: solo se mantiene
@@ -556,6 +582,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## 2026-05-20 · Tipografía e iconografía
 
 **Qué decidimos**:
+
 - **Familias**: IBM Plex Sans para texto general, IBM Plex Mono para
   datos numéricos (patentes, códigos de orden, precios, fechas). Pesos:
   400 y 500 de Sans, 400 de Mono. Subset latin extended.
@@ -570,6 +597,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   cuando va dentro de un botón primary/destructive.
 
 **Por qué**:
+
 - IBM Plex tiene terminaciones rectas con un toque técnico que Inter no
   tiene. Cuadra con "acento industrial sutil". Free, manejo de hinting
   bueno, latin extended completo.
@@ -586,6 +614,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   cuando comunica semántico. El resto del tiempo es decoración: gris.
 
 **Qué descartamos**:
+
 - Inter como fuente principal: más genérica, sin la personalidad técnica
   que se busca.
 - Tokens `body-strong` y `caption` separados: son variaciones, no niveles.
@@ -600,6 +629,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## 2026-05-20 · Pattern de fondo y logo white-label
 
 **Qué decidimos**:
+
 - **Sin pattern decorativo** de cuadrícula en el fondo de las pantallas.
   Fondo plano `background` (`n-50`) en todas.
 - **Logo del cliente**: dos slots independientes por instalación.
@@ -614,6 +644,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   no es la base visual del logo de la instalación.
 
 **Por qué**:
+
 - El pattern de cuadrícula era la única personalidad visual no-Linear
   del sistema, pero las ventajas (identidad, sensación de papel técnico,
   empty states menos rotos) son sutiles. Si el usuario que va a usar y
@@ -630,6 +661,7 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
   de white-label, no nivel 1.
 
 **Qué descartamos**:
+
 - Pattern siempre en el fondo de la app, tapado por cards: cansa la
   vista en pantallas densas.
 - Pattern solo en auth y empty states: tampoco aporta lo suficiente para
@@ -645,13 +677,14 @@ OAuth (los detalles de OAuth no vale la pena reimplementarlos).
 ## 2026-05-20 · Voz del producto (refina decisión previa)
 
 **Qué decidimos**:
+
 - **Voz** opera con regla mecánica de dos zonas:
   - **Acciones (lo que el sistema pide hacer)**: infinitivo. Ejemplos:
     `Iniciar sesión`, `Cerrar sesión`, `Recuperar contraseña`, `Editar`,
     `Email`, `Activar cuenta`.
   - **Mensajes (lo que el sistema cuenta)**: impersonal. Ejemplos:
     `El email no es válido.`, `No hay órdenes pendientes.`, `La orden
-    OS-2024-001847 fue guardada.`, `La sesión cierra en 5 minutos.`
+OS-2024-001847 fue guardada.`, `La sesión cierra en 5 minutos.`
 - **Sin voseo argentino**. Cuando aparece segunda persona explícita,
   tuteo neutro pan-hispano. Pero la regla de infinitivo/impersonal evita
   la mayoría de los casos.
@@ -668,6 +701,7 @@ intención original era localización argentina; ahora se especifica que
 eso significa voz neutra pan-hispana con tuteo cuando aplica, no voseo.
 
 **Por qué**:
+
 - Voseo argentino fija la base de strings en una variante regional. Si
   algún día el producto se ofrece fuera de Argentina, la migración es
   más fea que si se arranca neutro.
@@ -679,6 +713,7 @@ eso significa voz neutra pan-hispana con tuteo cuando aplica, no voseo.
   ahorran fricción.
 
 **Qué descartamos**:
+
 - Voseo argentino puro (la decisión previa implícita).
 - Tuteo neutro como regla general: cubre solo los casos con segunda
   persona explícita; la regla mecánica infinitivo/impersonal es más
@@ -693,6 +728,7 @@ eso significa voz neutra pan-hispana con tuteo cuando aplica, no voseo.
 ## 2026-05-20 · i18n: archivo de strings plano en Etapa 0
 
 **Qué decidimos**:
+
 - **i18n se sube a Etapa 0** (era pendiente, ahora es trabajo de la etapa
   actual). Causa: la decisión de voz exige que ningún string del producto
   se escriba inline en JSX.
@@ -702,11 +738,12 @@ eso significa voz neutra pan-hispana con tuteo cuando aplica, no voseo.
 - **Sin librería i18n** (next-intl, react-intl, etc.). El archivo plano
   alcanza.
 - Errores del dominio se modelan como **tipos discriminados** (`{ kind:
-  'EmailInvalido' }`) en `packages/domain` y `packages/application`. La
+'EmailInvalido' }`) en `packages/domain` y `packages/application`. La
   capa de presentación los traduce a strings. El dominio nunca sabe de
   strings de UI.
 
 **Por qué**:
+
 - Hoy y en todos las etapas mapeadas, el producto es 100% español
   rioplatense para usuarios argentinos. No hay locales que cambiar, ni
   pluralización ICU rara, ni fechas formateadas por país.
@@ -719,9 +756,10 @@ eso significa voz neutra pan-hispana con tuteo cuando aplica, no voseo.
   país — la migración es mecánica: todos los strings ya están
   centralizados.
 - Errores como tipos discriminados respeta hexagonal: el dominio sabe
-  *qué falló semánticamente*, no *cómo se le explica al usuario*.
+  _qué falló semánticamente_, no _cómo se le explica al usuario_.
 
 **Qué descartamos**:
+
 - `next-intl` (o equivalente) en etapa 0: sobreingeniería para un solo
   locale.
 - Híbrido "arranco con archivo plano, migro cuando aparezca el caso":
@@ -736,6 +774,7 @@ eso significa voz neutra pan-hispana con tuteo cuando aplica, no voseo.
 
 **Qué decidimos**: mantener `DECISIONES.md` como **un solo archivo** (no
 fragmentar en carpeta por tema ni por etapa), pero agregarle dos cosas:
+
 - **Fecha al inicio de cada título** de decisión: `## AAAA-MM-DD · Título`.
   Las decisiones previas a este cambio quedan marcadas `[Fase de diseño]` porque
   no se registró su fecha real (no se inventan fechas).
@@ -746,11 +785,12 @@ Esto **refina** la decisión previa "[Fase de diseño] · Bitácora de decisione
 que ya elegía archivo único pero sin índice ni fechas.
 
 **Por qué**:
+
 - El miedo a "archivo de 1 GB" no resiste los números: todo el proyecto
   genera del orden de cientos de KB de markdown, nunca un problema de
   tamaño. Markdown es texto plano.
-- Los dos requisitos reales eran *encontrar rápido por tema* y *buscar
-  por fecha*. El índice resuelve el primero (sin scrollear); las fechas
+- Los dos requisitos reales eran _encontrar rápido por tema_ y _buscar
+  por fecha_. El índice resuelve el primero (sin scrollear); las fechas
   en los títulos resuelven el segundo (`Ctrl-F` o `grep` sobre el año-mes).
 - El orden cronológico es información: una decisión que refina otra se
   lee como evolución solo si ambas están en el mismo flujo temporal.
@@ -759,6 +799,7 @@ que ya elegía archivo único pero sin índice ni fechas.
   bloque al final más una línea en el índice.
 
 **Qué descartamos**:
+
 - **Carpeta temática** (`decisiones/auth.md`, `ui.md`...): rompe la
   cronología global y obliga a clasificar cada decisión (¿"voz" es UI o
   i18n?). La duda de clasificación es el peor costo diario.
@@ -784,6 +825,7 @@ intención de publicar a npm, así que no importa si el nombre está
 tomado.
 
 **Qué descartamos**:
+
 - Scope con el nombre del producto: ataría los imports a un nombre que
   puede cambiar.
 - Sin scope (`domain`, `application` a secas): no distingue a simple
@@ -806,6 +848,7 @@ a base de errores y atrapa bugs reales (sobre todo `undefined` en
 accesos indexados) antes de tiempo de ejecución.
 
 **Qué descartamos**:
+
 - Config por paquete independiente: repite todo, se desincroniza.
 - Solo `strict: true` sin los extra: deja pasar accesos indexados sin
   chequear, que son fuente común de bugs.
@@ -827,6 +870,7 @@ sola. ESLint tiene el ecosistema de reglas más completo, incluido el de
 boundaries.
 
 **Qué descartamos**:
+
 - Biome (lint + formato en una sola herramienta, más rápido y simple):
   todavía no tiene un equivalente maduro al plugin de boundaries, que es
   justo la regla que más importa para proteger la hexagonal. Revisable
@@ -845,9 +889,88 @@ dominio es TS puro, los tests corren sin transpilación rara), y su API
 es prácticamente igual a la de Jest, así que la curva es mínima.
 
 **Qué descartamos**:
+
 - Jest: más material online pero más fricción con TS/ESM y más lento.
 - node:test (runner nativo): cero dependencias, pero le falta el
   ecosistema (mocking, coverage, watch mode) que se va a querer.
+
+---
+
+## 2026-05-20 · Límite application↔web: DTOs de salida
+
+**Qué decidimos**: tres reglas encadenadas sobre cómo cruzan los datos
+desde el dominio hacia la web:
+
+- **La entidad de dominio nunca sale de `application`.** Lo que cruza a
+  `web` es siempre un objeto plano (DTO de salida).
+- **El mapeo entidad → DTO vive en `application`**, no en `web`. El caso
+  de uso devuelve el DTO ya armado.
+- **El DTO de salida es ancho y general**: expone todo lo que un
+  consumidor razonable podría necesitar, menos lo sensible
+  (passwordHash, tokens). El Server Action recorta/formatea para su
+  pantalla particular.
+
+**Por qué**:
+
+- Si la entidad cruzara a `web`, aunque sea "de paso", se violaría el
+  límite: la UI quedaría acoplada a la estructura interna del dominio y
+  podría exponer datos sensibles. Las entidades además tienen
+  comportamiento y no serializan bien a través de la red de un Server
+  Action.
+- El mapeo en `application` mantiene la entidad adentro y deja el DTO
+  listo para cualquier adaptador de entrada (Server Action hoy, Route
+  Handler de un webhook mañana) sin reimplementarlo.
+- Un DTO ancho responde a la pregunta del negocio ("obtener usuario"),
+  no a una pantalla, así que es reutilizable por consumidores que
+  todavía no existen. La especialización por pantalla vive en el Server
+  Action, que es barato de cambiar y no lo comparte nadie.
+- Qué es "sensible" lo decide application/dominio, no la UI: la regla
+  "el hash nunca sale" no puede depender de que cada Server Action se
+  acuerde de excluirlo.
+
+**Qué descartamos**:
+
+- Devolver la entidad y mapear en `web`: la entidad cruzaría el límite.
+- DTO estrecho y específico por pantalla: ata el caso de uso a una vista
+  y mata la reutilización.
+- Excepciones previstas (no son la regla, se aplican cuando la evidencia
+  lo pide): partir en casos de uso específicos cuando el DTO ancho
+  implica queries caras que casi nadie usa, o cuando dos consumidores
+  necesitan formas genuinamente incompatibles del mismo concepto.
+
+---
+
+## 2026-05-20 · web no depende de domain (ni tipos); DTOs los define application
+
+**Qué decidimos**: `apps/web` no importa de `packages/domain` en
+absoluto — ni valores ni tipos. Web depende solo de `application`. Los
+DTOs de salida (los contratos de datos que web consume) se definen y
+exportan desde `application`. Los ViewModels reducidos para una pantalla
+puntual viven en `web` y se mapean desde esos DTOs.
+
+**Por qué**:
+
+- Como los casos de uso devuelven DTOs (no entidades), web nunca recibe
+  un `Usuario` de dominio: trabaja con `UsuarioDTO`. Por lo tanto no
+  necesita importar el tipo de la entidad. La excepción "solo tipos" que
+  se había considerado resulta innecesaria.
+- Que `application` sea dueña de los DTOs mantiene la dirección de
+  dependencias correcta (las capas de afuera dependen de las de adentro,
+  nunca al revés). Si web definiera los DTOs, application tendría que
+  conocer un tipo de una capa más externa.
+- La frontera con `domain` queda hermética y fácil de hacer cumplir por
+  el linter: cualquier import de `domain` en `web` es un error, sin
+  matices.
+
+**Qué descartamos**:
+
+- Permitir a web importar tipos de `domain` (la "excepción solo tipos"):
+  grieta innecesaria una vez que los DTOs viven en `application`.
+- Definir los DTOs en `web`: invertiría la dependencia (application
+  conocería a web).
+
+Modifica la regla de boundaries propuesta en el bootstrap, que dejaba
+este punto como "revisable".
 
 ---
 
@@ -878,7 +1001,7 @@ abordar más adelante. Se resolverán cuando lleguemos a sus etapas.
 ## Plan de etapas (orden tentativo)
 
 1. **Etapa 0** — Autenticación: Persona + Usuario + login + invitaciones
-   + recuperación de password. (Actual)
+   - recuperación de password. (Actual)
 2. **Etapa 1** — Cliente + Colaborador (las relaciones de Persona).
 3. **Etapa 2** — Vehículos.
 4. **Etapa 3** — Repuestos + Stock + Proveedores + Órdenes de compra.

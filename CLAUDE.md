@@ -57,10 +57,18 @@ plantearlo en vez de ignorarla.
 - Las invariantes de dominio se hacen cumplir en el constructor de la
   entidad, no solo en validaciones de formulario.
 - **Imports internos** usan el scope `@taller/*` (ej.
-  `import { Usuario } from '@taller/domain'`).
+  `import { iniciarSesion } from '@taller/application'`).
 - Los límites entre capas los hace cumplir ESLint (plugin de
   boundaries). Si un import viola la hexagonal, el lint falla: no
   silenciar la regla, corregir el import.
+- Las entidades de dominio no salen de `application`. Los casos de uso
+  devuelven DTOs planos (mapeo entidad→DTO en `application`). El DTO es
+  ancho (todo menos lo sensible); el Server Action recorta/formatea para
+  su pantalla.
+- `apps/web` depende solo de `application`, nunca de `domain` (ni tipos).
+  Los DTOs los define y exporta `application`. Los ViewModels de una
+  pantalla viven en `web` y se mapean desde los DTOs.
+
 ---
 
 ## Convenciones de código

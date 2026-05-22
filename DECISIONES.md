@@ -53,6 +53,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-21** · [Idioma de carpetas vs. idioma del negocio](#2026-05-21--idioma-de-carpetas-vs-idioma-del-negocio)
 - **2026-05-21** · [Idioma del código: genérico vs. propio del dominio](#2026-05-21--idioma-del-código-genérico-vs-propio-del-dominio)
 - **2026-05-21** · [Carga del .env en drizzle-kit vía --env-file](#2026-05-21--carga-del-env-en-drizzle-kit-vía---env-file-corrige-decisión-previa)
+- **2026-05-21** · [Organización de errores de dominio](#2026-05-21--organización-de-errores-de-dominio-híbrido-por-entidad--global)
 
 ---
 
@@ -1157,6 +1158,30 @@ teniendo --env-file nativo).
 
 Referencia: corrige la decisión "Cableado de Drizzle" (sub-punto de cómo el
 config lee el .env) del mismo día.
+
+---
+
+## 2026-05-21 · Organización de errores de dominio (híbrido por entidad + global)
+
+**Qué decidimos**: los errores de dominio son clases tipadas (no strings).
+Se organizan así:
+
+- Error específico de una entidad → vive en el archivo de errores de esa
+  entidad (ej. los errores de Persona junto a Persona).
+- Error transversal (lo usan varias entidades) → vive en un archivo
+  compartido de errores de dominio.
+
+Regla de promoción: arrancar siempre poniendo el error en su entidad. Un
+error se mueve al archivo global SOLO cuando una segunda entidad lo necesita
+de verdad, nunca por adelantado.
+
+**Por qué**: mantiene cada error cerca de la entidad que protege (cohesión),
+evita un archivo central que se vuelve cajón de sastre, y permite reutilizar
+los pocos errores que sí son transversales. La regla de promoción evita
+llenar el global con errores de un solo uso.
+
+**Qué descartamos**: un archivo por error (demasiados archivos sueltos), y un
+único archivo central para todo el dominio (crece hasta volverse inmanejable).
 
 ---
 

@@ -89,6 +89,17 @@ plantearlo en vez de ignorarla.
 - **Ningún string de UI inline** en componentes. Todo texto del producto
   vive en `apps/web/src/i18n/strings.ts`. Los errores de dominio se
   modelan como tipos discriminados y los traduce la capa de presentación.
+- **Errores de dominio**: son clases tipadas (no strings). Cada error vive en
+  el archivo de su entidad; si un error pasa a usarse en varias entidades, se
+  promueve a un archivo compartido de errores de dominio (nunca por
+  adelantado, solo cuando se repite el uso).
+- **No inferir decisiones no escritas.** Si una decisión no está registrada
+  explícitamente en DECISIONES.md o CLAUDE.md, no asumirla ni presentarla como
+  si estuviera tomada. Si para avanzar hace falta extrapolar de algo existente,
+  decir explícitamente "esto es una inferencia mía, no algo que decidiste" y
+  esperar confirmación antes de construir sobre eso.
+- **Ante la duda, preguntar.** Si algo no está claro o admite más de una
+  interpretación, consultar antes de avanzar, en vez de elegir una y seguir.
 
 ---
 

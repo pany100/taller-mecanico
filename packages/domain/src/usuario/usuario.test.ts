@@ -1,0 +1,149 @@
+import { describe, expect, it } from 'vitest';
+
+import { Persona } from '../persona/persona';
+import { Email } from '../shared/value-objects/email/email';
+import { PasswordHash } from '../shared/value-objects/password-hash/password-hash';
+import { Rol } from './rol';
+import { Usuario } from './usuario';
+import { UsuarioSinPersonaError } from './usuario.errors';
+
+describe('Usuario · crear', () => {
+  const ID_USUARIO = '22222222-2222-2222-2222-222222222222';
+  const ID_PERSONA = '11111111-1111-1111-1111-111111111111';
+  const FECHA_FIJA = new Date('2026-05-22T12:00:00.000Z');
+
+  const personaValida = () =>
+    Persona.crear({
+      id: ID_PERSONA,
+      nombre: 'Juana Pérez',
+      creadoEn: FECHA_FIJA,
+    });
+
+  const emailValido = () => Email.crear('juana@taller.test');
+  const passwordHashValido = () =>
+    PasswordHash.crear('$2b$10$abcdefghijklmnopqrstuv');
+
+  it('crea un Usuario válido con los datos provistos', () => {
+    const persona = personaValida();
+    const email = emailValido();
+    const passwordHash = passwordHashValido();
+    const rol: Rol = 'administrador';
+
+    const usuario = Usuario.crear({
+      id: ID_USUARIO,
+      persona,
+      email,
+      passwordHash,
+      rol,
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(usuario.id).toBe(ID_USUARIO);
+    expect(usuario.persona).toBe(persona);
+    expect(usuario.email).toBe(email);
+    expect(usuario.passwordHash).toBe(passwordHash);
+    expect(usuario.rol).toBe(rol);
+    expect(usuario.creadoEn).toBe(FECHA_FIJA);
+    expect(usuario.actualizadoEn).toBe(FECHA_FIJA);
+  });
+
+  it('actualizadoEn arranca igual a creadoEn al crear', () => {
+    const usuario = Usuario.crear({
+      id: ID_USUARIO,
+      persona: personaValida(),
+      email: emailValido(),
+      passwordHash: passwordHashValido(),
+      rol: 'miembro',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(usuario.actualizadoEn).toEqual(usuario.creadoEn);
+  });
+
+  it('guarda la Persona entera (no solo el id)', () => {
+    const persona = personaValida();
+
+    const usuario = Usuario.crear({
+      id: ID_USUARIO,
+      persona,
+      email: emailValido(),
+      passwordHash: passwordHashValido(),
+      rol: 'miembro',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(usuario.persona).toBe(persona);
+    expect(usuario.persona.id).toBe(ID_PERSONA);
+    expect(usuario.persona.nombre).toBe('Juana Pérez');
+  });
+
+  it('guarda los value objects pasados (email, passwordHash, rol)', () => {
+    const email = emailValido();
+    const passwordHash = passwordHashValido();
+
+    const usuario = Usuario.crear({
+      id: ID_USUARIO,
+      persona: personaValida(),
+      email,
+      passwordHash,
+      rol: 'administrador',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(usuario.email).toBe(email);
+    expect(usuario.passwordHash).toBe(passwordHash);
+    expect(usuario.rol).toBe('administrador');
+  });
+
+  it('tira UsuarioSinPersonaError cuando persona es null', () => {
+    expect(() =>
+      Usuario.crear({
+        id: ID_USUARIO,
+        persona: null as unknown as Persona,
+        email: emailValido(),
+        passwordHash: passwordHashValido(),
+        rol: 'miembro',
+        creadoEn: FECHA_FIJA,
+      }),
+    ).toThrow(UsuarioSinPersonaError);
+  });
+
+  it('tira UsuarioSinPersonaError cuando persona es undefined', () => {
+    expect(() =>
+      Usuario.crear({
+        id: ID_USUARIO,
+        persona: undefined as unknown as Persona,
+        email: emailValido(),
+        passwordHash: passwordHashValido(),
+        rol: 'miembro',
+        creadoEn: FECHA_FIJA,
+      }),
+    ).toThrow(UsuarioSinPersonaError);
+  });
+
+  it('funciona con rol "administrador"', () => {
+    const usuario = Usuario.crear({
+      id: ID_USUARIO,
+      persona: personaValida(),
+      email: emailValido(),
+      passwordHash: passwordHashValido(),
+      rol: 'administrador',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(usuario.rol).toBe('administrador');
+  });
+
+  it('funciona con rol "miembro"', () => {
+    const usuario = Usuario.crear({
+      id: ID_USUARIO,
+      persona: personaValida(),
+      email: emailValido(),
+      passwordHash: passwordHashValido(),
+      rol: 'miembro',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(usuario.rol).toBe('miembro');
+  });
+});

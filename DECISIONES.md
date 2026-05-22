@@ -52,6 +52,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-21** · [Cableado de Drizzle](#2026-05-21--cableado-de-drizzle)
 - **2026-05-21** · [Idioma de carpetas vs. idioma del negocio](#2026-05-21--idioma-de-carpetas-vs-idioma-del-negocio)
 - **2026-05-21** · [Idioma del código: genérico vs. propio del dominio](#2026-05-21--idioma-del-código-genérico-vs-propio-del-dominio)
+- **2026-05-21** · [Carga del .env en drizzle-kit vía --env-file](#2026-05-21--carga-del-env-en-drizzle-kit-vía---env-file-corrige-decisión-previa)
 
 ---
 
@@ -1132,6 +1133,30 @@ plumbing genérico a español (no aporta y desalinea).
 Corrige la decisión "Idioma de carpetas vs. idioma del negocio" del mismo
 día: la estructura técnica sigue en inglés, pero el criterio rector ahora
 es genérico vs. dominio, lo que suma las acciones de negocio al español.
+
+---
+
+## 2026-05-21 · Carga del .env en drizzle-kit vía --env-file (corrige decisión previa)
+
+**Qué decidimos**: el .env de la raíz lo cargan los scripts de migración con
+el flag nativo de Node `--env-file=../../.env` (en db:generate y db:migrate).
+El drizzle.config.ts queda pelado: solo lee process.env.DATABASE_URL, sin
+cargar ningún archivo.
+
+**Por qué**: la decisión previa (config carga el .env por path interno con
+process.loadEnvFile + import.meta.dirname) no funcionó: bajo el loader de
+drizzle-kit, import.meta.dirname venía undefined y el path no se resolvía.
+Cargar el .env desde el script con --env-file es nativo de Node 22, no agrega
+dependencias, y deja el config sin saber nada de paths ni de archivos: el
+entorno se lo provee quien lo invoca. Es además la opción más limpia que ya
+habíamos contemplado (el entorno lo provee el proceso, no el config).
+
+**Qué descartamos**: insistir con loadEnvFile en el config (no resuelve el
+import.meta.dirname undefined), y sumar dotenv como dependencia (innecesario
+teniendo --env-file nativo).
+
+Referencia: corrige la decisión "Cableado de Drizzle" (sub-punto de cómo el
+config lee el .env) del mismo día.
 
 ---
 

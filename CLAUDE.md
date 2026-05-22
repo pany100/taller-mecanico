@@ -68,6 +68,13 @@ plantearlo en vez de ignorarla.
 - `apps/web` depende solo de `application`, nunca de `domain` (ni tipos).
   Los DTOs los define y exporta `application`. Los ViewModels de una
   pantalla viven en `web` y se mapean desde los DTOs.
+- `packages/application` se organiza con `use-cases/` y `ports/` hermanos,
+  planos por concepto. Carpetas de capa en inglés; concepto del caso en
+  español.
+- Los casos de uso son funciones con firma `(deps, input)`: `deps` agrupa
+  los puertos/dependencias, `input` son los datos de la llamada.
+- Los puertos (interfaces) son propiedad de `application` y viven en
+  `ports/`; `infrastructure` los implementa.
 
 ---
 
@@ -101,6 +108,10 @@ plantearlo en vez de ignorarla.
   concepto se repite aunque el archivo viva en una carpeta homónima
   (`persona/persona.errors.ts`): la encontrabilidad manda sobre la
   redundancia.
+  - El set de roles del patrón `<concepto>.<rol>.ts` es cerrado: (sin
+    sufijo), `errors`, `test`, `repository`. Se suma un rol nuevo solo con
+    decisión registrada. Puertos no-repositorio van sin sufijo
+    (`hasher.ts`); `port` no se usa como rol.
 - **No inferir decisiones no escritas.** Si una decisión no está registrada
   explícitamente en DECISIONES.md o CLAUDE.md, no asumirla ni presentarla como
   si estuviera tomada. Si para avanzar hace falta extrapolar de algo existente,

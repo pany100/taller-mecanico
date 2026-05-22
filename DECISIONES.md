@@ -56,6 +56,8 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-21** · [Organización de errores de dominio](#2026-05-21--organización-de-errores-de-dominio-híbrido-por-entidad--global)
 - **2026-05-21** · [Ubicación de value objects transversales](#2026-05-21--ubicación-de-value-objects-transversales)
 - **2026-05-21** · [Nomenclatura de archivos: `<concepto>.<rol>.ts`](#2026-05-21--nomenclatura-de-archivos-conceptorolts)
+- **2026-05-22** · [Estructura y forma de la capa de aplicación](#2026-05-22--estructura-y-forma-de-la-capa-de-aplicación)
+- **2026-05-22** · [Set de roles cerrado en el patrón `<concepto>.<rol>.ts`](#2026-05-22--set-de-roles-cerrado-en-el-patrón-conceptorolts)
 
 ---
 
@@ -1241,6 +1243,85 @@ sin sufijo porque no necesita desambiguar su rol.
 **Qué descartamos**: `errors.ts` sin prefijo (ambiguo entre archivos del mismo
 nombre), `errores` en español (es rol técnico, no negocio), y sufijo de rol
 en el archivo principal (`persona.entity.ts`: más verboso sin beneficio).
+
+---
+
+## 2026-05-22 · Estructura y forma de la capa de aplicación
+
+**Qué decidimos**:
+
+- **Método demand-driven**: en `application` los puertos nacen cuando un caso
+  de uso los necesita; no se cataloga por adelantado. La firma de cada puerto
+  la dicta el caso que lo consume.
+- **Estructura**: `packages/application/src/` con `use-cases/` y `ports/`
+  hermanos, planos (por concepto, sin agrupar por feature), espejando dominio.
+- **Idioma**: carpetas de capa en inglés (`use-cases`, `ports`) por ser
+  vocabulario de arquitectura; el concepto de cada caso en español
+  (`iniciar-sesion`) por ser acción de negocio. Misma regla genérico-vs-dominio.
+- **Caso de uso = función**, no clase.
+- **Firma `(deps, input)`**: `deps` = objeto de dependencias (puertos), `input`
+  = datos de la llamada. Dos argumentos separados. `deps` en inglés (plomería).
+- **`ports/` es propiedad de `application`**, no de `infrastructure`: la
+  interfaz vive acá e infra la implementa (inversión de dependencias).
+
+**Por qué**:
+
+- Demand-driven evita adivinar firmas en el vacío y mete YAGNI; el puerto se
+  define por la necesidad real del caso que lo usa.
+- Plano por concepto mantiene coherencia con dominio; agrupar por feature hoy
+  sería una carpeta `auth/` vacía con un solo grupo.
+- Función encaja con dominio (todo funciones puras con deps inyectadas) y evita
+  la ceremonia de un contenedor de DI que no existe.
+- `(deps, input)` separa el cableado (puertos, estables en producción) de los
+  datos de la invocación (cambian en cada llamada). Se lee en la firma qué es
+  infraestructura y qué es payload, y el test queda obvio.
+
+**Qué descartamos**:
+
+- Catálogo de puertos primero (lleva a adivinar firmas y YAGNI).
+- Agrupar por feature en application hoy (agrupación vacía).
+- Clase con constructor (sirve con contenedor DI; sin él es ceremonia).
+- Parámetros sueltos (no escalan, mezclan puertos con datos), todo en un objeto
+  (mezcla cableado con datos), y currying (capa mental sin pago; reinventa el
+  constructor ya descartado).
+- Nombrar `deps` como `ports`: se prefirió `deps` por generalidad (aguanta
+  inyectar a futuro algo que no sea un puerto).
+
+---
+
+## 2026-05-22 · Set de roles cerrado en el patrón `<concepto>.<rol>.ts`
+
+**Qué decidimos**: el set de roles-de-archivo del patrón `<concepto>.<rol>.ts`
+es **cerrado y documentado**. Roles iniciales:
+
+- (sin sufijo) — entidad / value object / concepto principal (`persona.ts`,
+  `rol.ts`, `hasher.ts`).
+- `errors` — errores tipados.
+- `test` — tests.
+- `repository` — puerto de repositorio (`usuario.repository.ts`).
+
+Reglas:
+
+- Un rol nuevo se agrega SOLO con decisión registrada (misma regla de promoción
+  que los errores), nunca por inercia.
+- `repository` lleva sufijo porque nombra una familia/categoría reconocible de
+  puerto. Los puertos **no-repositorio** van **sin sufijo**, como concepto
+  (`hasher.ts`, `id-generator.ts`): la carpeta `ports/` ya marca que son puertos.
+- `port` queda **explícitamente descartado** como rol.
+
+**Por qué**: el set cerrado mantiene el patrón legible (roles que se reúsan, no
+una palabra libre por archivo). `repository` aporta info que la carpeta no da
+(qué clase de puerto es); `port` no, sería redundante con la carpeta `ports/`.
+Esto se distingue del prefijo de concepto (`persona/persona.errors.ts`), que sí
+es redundancia útil para encontrabilidad en Cmd+P; la redundancia de rol no
+ayuda a encontrar nada.
+
+**Qué descartamos**: set abierto (cada quien acuña roles → patrón ilegible),
+`port` como rol (redundante con la carpeta), y sufijar todos los puertos por
+uniformidad (no aporta).
+
+Extiende la decisión "Nomenclatura de archivos: `<concepto>.<rol>.ts`" del
+2026-05-21, fijando el conjunto cerrado de roles.
 
 ---
 

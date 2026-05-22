@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NombreMuyLargoError, NombreVacioError } from './errores';
+import { NombreMuyLargoError, NombreVacioError } from './persona.errors';
 import { Persona } from './persona';
 
 describe('Persona · crear', () => {

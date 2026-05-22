@@ -93,6 +93,14 @@ plantearlo en vez de ignorarla.
   el archivo de su entidad; si un error pasa a usarse en varias entidades, se
   promueve a un archivo compartido de errores de dominio (nunca por
   adelantado, solo cuando se repite el uso).
+  - Cada entidad/value object tiene su archivo de errores SEPARADO, aunque
+    tenga un solo error. Sin excepciones por cantidad.
+- **Nomenclatura de archivos**: patrón `<concepto>.<rol>.ts` con rol en
+  inglés. Principal sin sufijo (`persona.ts`, `email.ts`), errores en
+  `<concepto>.errors.ts`, tests en `<concepto>.test.ts`. El prefijo del
+  concepto se repite aunque el archivo viva en una carpeta homónima
+  (`persona/persona.errors.ts`): la encontrabilidad manda sobre la
+  redundancia.
 - **No inferir decisiones no escritas.** Si una decisión no está registrada
   explícitamente en DECISIONES.md o CLAUDE.md, no asumirla ni presentarla como
   si estuviera tomada. Si para avanzar hace falta extrapolar de algo existente,

@@ -54,6 +54,8 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-21** · [Idioma del código: genérico vs. propio del dominio](#2026-05-21--idioma-del-código-genérico-vs-propio-del-dominio)
 - **2026-05-21** · [Carga del .env en drizzle-kit vía --env-file](#2026-05-21--carga-del-env-en-drizzle-kit-vía---env-file-corrige-decisión-previa)
 - **2026-05-21** · [Organización de errores de dominio](#2026-05-21--organización-de-errores-de-dominio-híbrido-por-entidad--global)
+- **2026-05-21** · [Ubicación de value objects transversales](#2026-05-21--ubicación-de-value-objects-transversales)
+- **2026-05-21** · [Nomenclatura de archivos: `<concepto>.<rol>.ts`](#2026-05-21--nomenclatura-de-archivos-conceptorolts)
 
 ---
 
@@ -1180,6 +1182,10 @@ de verdad, nunca por adelantado.
   mensaje de cara al usuario lo arma la capa de presentación en español
   desde el payload del error. Sin comentarios en el código que expliquen
   esto: la convención vive acá.
+- Los errores van SIEMPRE en un archivo de errores aparte, aunque la entidad
+  o value object tenga un solo error. Se respeta el formato sin excepciones
+  por cantidad: el código queda predecible y se trabaja siguiendo siempre la
+  misma convención.
 
 **Por qué**: mantiene cada error cerca de la entidad que protege (cohesión),
 evita un archivo central que se vuelve cajón de sastre, y permite reutilizar
@@ -1188,6 +1194,53 @@ llenar el global con errores de un solo uso.
 
 **Qué descartamos**: un archivo por error (demasiados archivos sueltos), y un
 único archivo central para todo el dominio (crece hasta volverse inmanejable).
+
+---
+
+## 2026-05-21 · Ubicación de value objects transversales
+
+**Qué decidimos**: los value objects que no pertenecen a una sola entidad (los
+transversales: Email, y a futuro Dinero, Cuit, etc.) viven en
+`packages/domain/src/shared/value-objects/<concepto>/`, cada uno en su carpeta
+con su archivo, sus errores y sus tests. `shared/` agrupa por alcance (dominio
+compartido), `value-objects/` por categoría, la carpeta del concepto por
+significado.
+
+**Por qué**: `shared/` deja claro que es dominio compartido y tiene lugar para
+otras cosas compartidas (errores transversales, tipos), no solo VOs. Agrupar
+por categoría adentro (`value-objects/`) evita el cajón de sastre. Un VO propio
+de una sola entidad NO va acá: vive dentro de la carpeta de esa entidad.
+
+**Qué descartamos**: `value-objects/` en la raíz del dominio (agrupa solo por
+tipo técnico, sin lugar para otro compartido que no sea VO), y poner los VO
+transversales a la altura de las entidades (no son de ninguna).
+
+---
+
+## 2026-05-21 · Nomenclatura de archivos: `<concepto>.<rol>.ts`
+
+**Qué decidimos**: los archivos de dominio siguen el patrón
+`<concepto>.<rol>.ts`, con el rol en inglés (plomería):
+
+- Entidad o value object principal: sin sufijo de rol (`persona.ts`,
+  `email.ts`).
+- Errores: `<concepto>.errors.ts` (`persona.errors.ts`, `email.errors.ts`).
+- Tests: `<concepto>.test.ts` (ya en uso).
+
+El prefijo del concepto se repite aunque el archivo viva en una carpeta del
+mismo nombre (`persona/persona.errors.ts`), asumiendo la redundancia a
+propósito.
+
+**Por qué**: el prefijo hace el archivo inequívoco en la pestaña del editor,
+en el buscador rápido (Cmd+P) y en búsquedas: un `errors.ts` pelado no se
+distingue de otros cinco abiertos, `persona.errors.ts` sí. La encontrabilidad
+diaria pesa más que la redundancia estética. `errors`/`test` van en inglés
+porque son roles técnicos (plomería), no negocio. El archivo principal queda
+sin sufijo porque no necesita desambiguar su rol.
+
+**Qué descartamos**: `errors.ts` sin prefijo (ambiguo entre archivos del mismo
+nombre), `errores` en español (es rol técnico, no negocio), y sufijo de rol
+en el archivo principal (`persona.entity.ts`: más verboso sin beneficio).
 
 ---
 

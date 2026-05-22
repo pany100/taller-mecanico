@@ -75,6 +75,15 @@ plantearlo en vez de ignorarla.
   los puertos/dependencias, `input` son los datos de la llamada.
 - Los puertos (interfaces) son propiedad de `application` y viven en
   `ports/`; `infrastructure` los implementa.
+- Los casos de uso devuelven un Result tipado (`{ ok: true; value } | { ok:
+  false; error }`, definido en `application/src/shared/result.ts`) para los
+  errores de negocio. Las fallas técnicas inesperadas (DB caída, bugs,
+  invariantes de dominio) se lanzan como excepciones y las absorbe un error
+  boundary en web.
+- Corte: si el caso de uso DECIDE el final → Result; si algo REVENTÓ por
+  debajo → excepción.
+- Los errores de negocio son tipos discriminados (`{ kind: '...' }`) en el
+  lado `error` del Result; la capa de presentación los traduce a strings.
 
 ---
 

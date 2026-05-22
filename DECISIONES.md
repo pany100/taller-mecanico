@@ -58,6 +58,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-21** · [Nomenclatura de archivos: `<concepto>.<rol>.ts`](#2026-05-21--nomenclatura-de-archivos-conceptorolts)
 - **2026-05-22** · [Estructura y forma de la capa de aplicación](#2026-05-22--estructura-y-forma-de-la-capa-de-aplicación)
 - **2026-05-22** · [Set de roles cerrado en el patrón `<concepto>.<rol>.ts`](#2026-05-22--set-de-roles-cerrado-en-el-patrón-conceptorolts)
+- **2026-05-22** · [Manejo de resultados y errores en casos de uso (Result vs throw)](#2026-05-22--manejo-de-resultados-y-errores-en-casos-de-uso-result-vs-throw)
 
 ---
 
@@ -1322,6 +1323,69 @@ uniformidad (no aporta).
 
 Extiende la decisión "Nomenclatura de archivos: `<concepto>.<rol>.ts`" del
 2026-05-21, fijando el conjunto cerrado de roles.
+
+---
+
+## 2026-05-22 · Manejo de resultados y errores en casos de uso (Result vs throw)
+
+**Qué decidimos**:
+
+- Los casos de uso de `application` comunican sus finales con un **Result
+  tipado**, no con excepciones, para los **errores de negocio**.
+- Forma del Result: union discriminado definido a mano en
+  `packages/application/src/shared/result.ts`:
+  `type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }`,
+  con helpers `ok(value)` y `err(error)`. Sin librería (neverthrow, fp-ts,
+  Effect).
+- Los errores de negocio viajan en el lado `E` como tipos discriminados
+  (`{ kind: '...' }`), coherente con la decisión de errores del dominio.
+- **Corte mecánico Result vs throw**: si es un final que el caso de uso
+  **decide** (credenciales inválidas, email inválido, invitación expirada) →
+  Result. Si es una **falla** que reventó por debajo y nadie eligió (DB caída,
+  bug, invariante de dominio rota) → excepción.
+- Las excepciones (fallas técnicas) las absorbe un error boundary genérico en
+  web, no se manejan caso por caso. Los finales de negocio (Result) se manejan
+  explícitamente en cada Server Action, y el compilador obliga a contemplarlos.
+- **Clasificación de email inválido**: un email malformado es **error de
+  validación**, NO se disfraza de "credenciales inválidas". La regla
+  anti-enumeración aplica a *qué usuarios existen*, no a *si el input está bien
+  formado*: un email sintácticamente inválido no puede corresponder a ninguna
+  cuenta, así que informarlo no filtra usuarios registrados.
+
+**Por qué**:
+
+- La firma del caso declara la verdad: `Result<DTO, E>` lista los finales
+  posibles; el caller los ve y el compilador lo obliga a manejarlos. Una firma
+  que solo lanza (`Promise<DTO>`) calla sus errores y deja olvidarse de
+  catchearlos hasta runtime.
+- Si se agrega un error nuevo al caso, la firma cambia y todos los callers
+  dejan de compilar hasta manejarlo: el compilador hace la lista de lo que hay
+  que actualizar en la UI. Es la misma filosofía de `strict` /
+  `noUncheckedIndexedAccess` aplicada al control de flujo.
+- Los errores de negocio no son excepcionales: "credenciales inválidas" es un
+  resultado esperado y frecuente de un login. Modelarlo como valor (Result) y
+  no como excepción es más fiel a lo que pasa.
+- A esta escala (Server Action → un caso → repos) no hay anidamiento profundo,
+  así que el costo de ergonomía del Result (desenvolver `if (ok)`) es bajo y el
+  beneficio (firma honesta, compilador que cubre) es alto.
+- Result a mano son ~10 líneas: escribirlo enseña el patrón en vez de importar
+  magia (objetivo de aprendizaje), y respeta "no agregar dependencias sin
+  decidirlo".
+
+**Qué descartamos**:
+
+- Excepciones (throw) para errores de negocio: la firma no los declara, el
+  caller no sabe qué catchear sin leer el cuerpo, y el `catch` tipa el error
+  como `unknown`. Se reservan para fallas técnicas inesperadas.
+- Librerías de Result/FP (fp-ts, Effect): traen un universo (pipe, TaskEither,
+  typeclasses) con curva enorme para algo trivial. neverthrow: más liviano pero
+  igual es dependencia para ~10 líneas.
+- Disfrazar el email malformado como "credenciales inválidas": no aporta a
+  anti-enumeración (un email inválido nunca es una cuenta) y empeora la UX.
+
+Nota: el dominio sigue usando excepciones para invariantes rotas (ej.
+`Usuario.crear` lanza `UsuarioSinPersonaError`); eso es coherente con el corte
+(una invariante rota es un bug, no una decisión de negocio).
 
 ---
 

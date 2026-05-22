@@ -1175,6 +1175,12 @@ Regla de promoción: arrancar siempre poniendo el error en su entidad. Un
 error se mueve al archivo global SOLO cuando una segunda entidad lo necesita
 de verdad, nunca por adelantado.
 
+- Los errores de dominio llaman a `super()` con un mensaje técnico seco en
+  inglés (para logs y debugging), NO es el texto que ve el usuario. El
+  mensaje de cara al usuario lo arma la capa de presentación en español
+  desde el payload del error. Sin comentarios en el código que expliquen
+  esto: la convención vive acá.
+
 **Por qué**: mantiene cada error cerca de la entidad que protege (cohesión),
 evita un archivo central que se vuelve cajón de sastre, y permite reutilizar
 los pocos errores que sí son transversales. La regla de promoción evita

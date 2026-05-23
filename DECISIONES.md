@@ -62,6 +62,9 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Organización por feature en application y entities/ en domain](#2026-05-22--organización-por-feature-en-application-y-entities-en-domain)
 - **2026-05-22** · [Sesion como entidad de application](#2026-05-22--sesion-como-entidad-de-application)
 - **2026-05-22** · [Path aliases `@/*` por paquete; imports relativos prohibidos](#2026-05-22--path-aliases--por-paquete-imports-relativos-prohibidos)
+- **2026-05-22** · [Puertos de iniciarSesion: lista y ubicación](#2026-05-22--puertos-de-iniciarsesion-lista-y-ubicación)
+- **2026-05-22** · [Firmas de los puertos de iniciarSesion](#2026-05-22--firmas-de-los-puertos-de-iniciarsesion)
+- **2026-05-22** · [Firma de Sesion.crear](#2026-05-22--firma-de-sesioncrear)
 
 ---
 
@@ -1539,6 +1542,227 @@ sesión, qué devuelve el caso, y si el token se guarda plano o hasheado.
   manual hacen lo mismo sin sumar peso.
 - Dejar `baseUrl: "."` para silenciar la deprecation con `ignoreDeprecations`:
   esconder un aviso que TS 7 va a remover no es solución.
+
+---
+
+## 2026-05-22 · Puertos de iniciarSesion: lista y ubicación
+
+**Qué decidimos**:
+
+El caso de uso `iniciarSesion` consume estos puertos:
+
+- `UsuarioRepository` — buscar usuario por email (`findByEmail`).
+- `Hasher` — verificar password contra el hash.
+- `TokenGenerator` — generar el token aleatorio de sesión.
+- `SesionRepository` — persistir la sesión.
+- `Reloj` — proveer la hora actual (efecto inyectado a `Sesion.crear`).
+- `IdGenerator` — generar el id de la sesión (efecto inyectado).
+
+Ubicación:
+
+- `application/src/shared/ports/`: `Reloj` e `IdGenerator`.
+- `application/src/auth/ports/`: `UsuarioRepository`, `Hasher`,
+  `TokenGenerator`, `SesionRepository`.
+
+`Reloj` e `IdGenerator` se ubican en `shared/` **anticipadamente**, con un
+solo consumidor (auth), rompiendo a propósito la regla de promoción normal
+(la de errores de dominio, 2026-05-21). El resto de los puertos nacen en
+`auth/ports/` y siguen la regla de promoción: se mueven a `shared/` cuando
+aparezca un segundo consumidor real.
+
+**Por qué**:
+
+- `Reloj` e `IdGenerator` son plomería pura (sin negocio) y la probabilidad
+  de que sean transversales a futuro (cualquier feature que cree entidades
+  con timestamps o ids los va a querer) es alta. Se prioriza no tener que
+  moverlos en dos semanas por sobre la pureza de la regla de promoción. Es
+  una excepción consciente, no un olvido.
+- `TokenGenerator` se mantiene en `auth/` pese a ser plomería: un generador
+  de tokens de sesión huele a autenticación, no es tan obviamente
+  transversal como un reloj o un generador de ids.
+- El costo de equivocarse en la anticipación es bajo: con los path aliases
+  `@/*` (2026-05-22) mover un puerto es mecánico y el compilador marca cada
+  import roto.
+
+**Qué descartamos**:
+
+- Arrancar `Reloj` e `IdGenerator` en `auth/ports/` y aplicarles la regla de
+  promoción como a los demás: defendible (no anticipar, aprender al mover),
+  pero se prefirió pagar el costo de la anticipación para no re-tocarlos.
+- Mandar `TokenGenerator` también a `shared/`: se juzgó específico de auth.
+
+---
+
+## 2026-05-22 · Firmas de los puertos de iniciarSesion
+
+Cierra las firmas concretas de los puertos listados en la entrada
+"Puertos de iniciarSesion: lista y ubicación" del mismo día.
+
+**Qué decidimos**:
+
+Firmas finales de los seis puertos:
+
+`shared/ports/`:
+- `Clock` → `now(): Date`
+- `IdGenerator` → `generate(): string` (contrato: produce UUID v7)
+
+`auth/ports/`:
+- `UsuarioRepository` → `findByEmail(email: Email): Promise<Usuario | null>`
+- `Hasher` → `verify(password: string, hash: string): Promise<boolean>`
+- `TokenGenerator` → `generate(): string` (contrato: token criptográficamente
+  aleatorio de alta entropía)
+- `TokenHasher` → `hash(token: string): string` (síncrono)
+- `SesionRepository` → `save(sesion: Sesion): Promise<void>`
+
+Cambios respecto de la entrada previa de puertos:
+
+- **Aparece `TokenHasher` como sexto puerto.** Es consecuencia de guardar el
+  token de sesión hasheado (no plano) en la DB: alguien tiene que calcular el
+  hash, y ese efecto necesita su puerto. Se modeló como puerto dedicado
+  (no se metió el hasheo dentro de `SesionRepository` ni de `TokenGenerator`).
+- **`Reloj` se renombra a `Clock`.** El puerto antes listado como `Reloj` pasa
+  a llamarse `Clock`, para que sustantivo y método estén en el mismo idioma
+  (inglés), aplicando la regla genérico-vs-dominio a rajatabla sobre plomería.
+
+Decisiones finas de las firmas:
+
+- `findByEmail` recibe el value object `Email`, no `string`: obliga a que el
+  caso de uso valide el email (construya el VO) antes de llegar al repo.
+- `Hasher.verify` es `Promise` (bcrypt es async) y devuelve `boolean`
+  (coincide o no). Solo expone `verify`; `hash` se sumará cuando un caso de uso
+  que cree/cambie password (ej. `AceptarInvitacion`) lo necesite (demand-driven).
+- `TokenHasher.hash` es síncrono (sha256 es rápido, no hay razón para async) y
+  no tiene `verify`: la validación por request es "hashear y buscar el hash en
+  la DB", no comparar dos hashes. No expone `verify`.
+- `IdGenerator` y `TokenGenerator` tienen la misma firma (`generate(): string`)
+  pero son puertos distintos a propósito: el `id` puede ser predecible/ordenable
+  (UUID v7, bueno para el índice del B-tree), el `token` debe ser impredecible
+  (es la credencial). Firma igual, contrato de seguridad opuesto.
+- `SesionRepository` hoy solo tiene `save`; el método de buscar-por-hash-de-token
+  (validación por request) se sumará cuando se implemente esa validación
+  (demand-driven).
+- `save` recibe la entidad `Sesion`, que lleva el token **hasheado** adentro
+  (nunca el plano). El plano vive solo como variable efímera del caso de uso
+  (es lo que se devuelve para la cookie). El repo no hashea: persiste lo que le
+  dan (plomería pura).
+
+**Por qué**:
+
+- Token hasheado en DB: si se filtra la base, el hash no sirve para secuestrar
+  sesiones (mismo razonamiento que no guardar passwords en plano). El token es
+  alta entropía, así que alcanza sha256 (rápido), no hace falta bcrypt.
+- `Clock` en inglés completo: `Reloj.now()` era un híbrido (sustantivo español,
+  método inglés) que dejaba el criterio de idioma ambiguo para los próximos
+  puertos. Inglés entero es fiel a la regla genérico-vs-dominio (un reloj es
+  plomería, no negocio del taller).
+- Puertos separados con firma igual (`IdGenerator`/`TokenGenerator`): firma
+  igual no es propósito igual. Fusionarlos en un `StringGenerator` borraría la
+  distinción de seguridad (predecible vs impredecible), que es justo la que no
+  se quiere perder.
+- `Email` como tipo de `findByEmail`: el tipo fuerte empuja la validación al
+  borde correcto (antes del repo), no adentro de la persistencia.
+
+**Qué descartamos**:
+
+- Hashear el token dentro de `SesionRepository.save` (recibiendo el plano): el
+  repo tomaría una decisión de seguridad y dejaría de ser plomería; además
+  esconde el hasheo donde no es obvio.
+- Hashear dentro de `TokenGenerator` (que devuelva `{ plano, hasheado }`):
+  acopla generar-aleatoriedad con hashear; se prefirió un puerto por efecto.
+- `Sesion` con el token plano adentro (o con plano + hash): el plano nunca debe
+  persistirse; tenerlo en la entidad aumenta el riesgo de loguearlo o guardarlo
+  por accidente. La entidad lleva solo el hash.
+- Anticipar `Hasher.hash`: a diferencia de mover un puerto de carpeta, sumar un
+  método después no tiene costo de refactor, así que no hay razón para
+  adelantarlo.
+
+---
+
+## 2026-05-22 · Firma de Sesion.crear
+
+Cierra la forma concreta de la factory de la entidad `Sesion`, continuando la
+entrada "Sesion como entidad de application" del mismo día (que definió que
+`Sesion` vive en application, con reglas en la factory y efectos inyectados).
+
+**Qué decidimos**:
+
+Firma de la factory:
+
+`Sesion.crear({ id, tokenHash, usuarioId, creadoEn })` → devuelve `Sesion`.
+
+- **Recibe** (un solo objeto de props; efectos ya resueltos por el caso de uso):
+  - `id: string`
+  - `tokenHash: string` (el hash del token; el plano nunca entra a la entidad)
+  - `usuarioId: string`
+  - `creadoEn: Date`
+- **Deriva por sus reglas** dentro de `crear` (no se reciben):
+  - `usuarioRealId = usuarioId` (sin masquerade al nacer)
+  - `expiraEn = creadoEn + 7 días`
+  - `actualizadoEn = creadoEn` (= creadoEn al nacer)
+- **Estado expuesto**, todo `readonly` público (mismo patrón que `Persona` y
+  `Usuario`): `id`, `tokenHash`, `usuarioId`, `usuarioRealId`, `creadoEn`,
+  `actualizadoEn`, `expiraEn`.
+- `crear` devuelve la instancia de `Sesion`; el caso de uso saca de ahí lo que
+  necesita (el `tokenHash` para el `save`, el `expiraEn` para el Result).
+
+Decisiones finas:
+
+- **Objeto único, no argumentos sueltos.** `id`, `tokenHash` y `usuarioId` son
+  los tres `string`: pasarlos posicionales permite cruzarlos sin que el
+  compilador avise. Nombrarlos en el call site (`{ id, tokenHash, usuarioId }`)
+  previene el cruce.
+- **`creadoEn: Date`, no `ahora` ni `clock: Clock`.** La entidad recibe la fecha
+  ya resuelta y nombrada por su rol (`creadoEn`), coherente con cómo `Persona` y
+  `Usuario` reciben `creadoEn`. El caso de uso sigue obteniéndola con
+  `clock.now()` y se la pasa; a la entidad no le importa el origen, le importa
+  que es su fecha de creación. Pasar el puerto `Clock` a la entidad la acoplaría
+  a infraestructura y rompería su pureza/testeabilidad; pasar un `ahora`
+  genérico era incoherente con el resto del dominio.
+- **`expiraEn` y `actualizadoEn` derivados de `creadoEn`** (no de un instante
+  aparte): la sesión expira 7 días después de su creación, y al nacer su última
+  actualización es su creación. Más claro y coherente que derivarlos de un
+  genérico "ahora".
+- **`usuarioId: string` (no un tipo fuerte tipo `UsuarioId`).** Coherencia con
+  el dominio: `Persona` y `Usuario` usan `string` pelado para sus ids. Un id
+  tipado solo para `Sesion` sería un único id tipado rodeado de strings. Ids
+  tipados (branded types/VOs) serían una decisión de sistema entero, no un
+  parche por entidad. La protección contra el cruce la da el objeto en el call
+  site.
+- **`actualizadoEn` incluido** por el Nivel 1 de auditoría (decisión de
+  timestamps: `creadoEn` + `actualizadoEn` no negociable en toda entidad).
+
+**Por qué**:
+
+- Objeto de props para una factory con varios primitivos del mismo tipo es el
+  patrón que da legibilidad en el call site y evita el cruce silencioso de
+  argumentos.
+- Recibir `creadoEn` (no `ahora`) alinea `Sesion` con `Persona` y `Usuario`:
+  todas las entidades reciben su fecha de creación nombrada igual. Evita que
+  cada entidad invente su propia convención para la misma cosa.
+- Mantener la entidad sin conocer puertos preserva la frontera: el caso de uso
+  vive en el mundo de los efectos (tiene e invoca los puertos), la entidad vive
+  en el mundo de las reglas puras (recibe resultados, decide). `expiraEn =
+  creadoEn + 7 días` es una regla sobre un dato, no sobre un puerto.
+- `readonly` es coherente con el resto del dominio y expresa que una sesión no
+  cambia tras crearse (con la salvedad de la renovación, ver pendiente).
+
+**Qué descartamos**:
+
+- Argumentos sueltos posicionales: colisión de tipos entre los tres `string`.
+- Recibir `ahora` en vez de `creadoEn`: incoherente con `Persona`/`Usuario`,
+  que reciben `creadoEn`.
+- Pasar `clock: Clock` a la entidad: acopla la entidad a un puerto, rompe la
+  pureza y contradice "efectos resueltos desde afuera".
+- `UsuarioId` tipado solo para esta entidad: incoherente con los ids `string`
+  del resto del dominio.
+
+**Pendiente (no se decide ahora)**: el patrón de **renovación rodante** de la
+sesión (la fecha de expiración se renueva con uso, decisión de sesiones
+server-side rodantes) implica mutar `expiraEn` y `actualizadoEn`, lo que tensiona
+el `readonly`. Las dos opciones —renovación inmutable (crear instancia nueva,
+todo sigue `readonly`) vs. mutar esos dos campos (método `renovar`)— se evalúan
+cuando se implemente la validación por request (punto 5 del roadmap), con el caso
+de uso de renovación delante. Hoy: todo `readonly`.
 
 ---
 

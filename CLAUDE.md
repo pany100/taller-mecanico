@@ -112,6 +112,10 @@ plantearlo en vez de ignorarla.
   verbos: entidades, campos y acciones de negocio (`Persona`, `Usuario`,
   `registrarRepuesto`, `cambiarPassword`). Test: ¿lo entendería alguien del
   taller? Sí → español; plomería genérica → inglés.
+ - **Puertos de plomería van enteros en inglés**, sustantivo y método
+  (`Clock.now()`, no `Reloj.now()`). Un puerto que es plomería genérica
+  (no negocio del taller) no mezcla idiomas: el sustantivo del puerto y sus
+  métodos van ambos en inglés.
 - **Base de datos**: `snake_case` para tablas y columnas
   (`creado_en`, `expira_en`).
 - **TypeScript**: `camelCase` para propiedades y variables

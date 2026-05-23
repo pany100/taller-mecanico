@@ -2,7 +2,8 @@ import { Persona } from '@/entities/persona/persona';
 import { Email } from '@/shared/value-objects/email/email';
 import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
 import { Rol } from '@/entities/usuario/rol';
-import { UsuarioSinPersonaError } from '@/entities/usuario/usuario.errors';
+import { type UsuarioSinPersona } from '@/entities/usuario/usuario.errors';
+import { err, ok, type Result } from '@/shared/result/result';
 
 export class Usuario {
   readonly id: string;
@@ -38,19 +39,21 @@ export class Usuario {
     passwordHash: PasswordHash;
     rol: Rol;
     creadoEn: Date;
-  }): Usuario {
+  }): Result<Usuario, UsuarioSinPersona> {
     if (input.persona === null || input.persona === undefined) {
-      throw new UsuarioSinPersonaError();
+      return err({ kind: 'UsuarioSinPersona' });
     }
 
-    return new Usuario(
-      input.id,
-      input.persona,
-      input.email,
-      input.passwordHash,
-      input.rol,
-      input.creadoEn,
-      input.creadoEn,
+    return ok(
+      new Usuario(
+        input.id,
+        input.persona,
+        input.email,
+        input.passwordHash,
+        input.rol,
+        input.creadoEn,
+        input.creadoEn,
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
-import { PasswordHashVacioError } from '@/shared/value-objects/password-hash/password-hash.errors';
+import { type PasswordHashVacio } from '@/shared/value-objects/password-hash/password-hash.errors';
+import { err, ok, type Result } from '@/shared/result/result';
 
 export class PasswordHash {
   readonly valor: string;
@@ -7,12 +8,12 @@ export class PasswordHash {
     this.valor = valor;
   }
 
-  static crear(input: string): PasswordHash {
+  static crear(input: string): Result<PasswordHash, PasswordHashVacio> {
     if (input.trim().length === 0) {
-      throw new PasswordHashVacioError();
+      return err({ kind: 'PasswordHashVacio' });
     }
 
-    return new PasswordHash(input);
+    return ok(new PasswordHash(input));
   }
 
   toString(): string {

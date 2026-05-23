@@ -1,4 +1,5 @@
-import { EmailInvalidoError } from '@/shared/value-objects/email/email.errors';
+import { type EmailInvalido } from '@/shared/value-objects/email/email.errors';
+import { err, ok, type Result } from '@/shared/result/result';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -9,14 +10,14 @@ export class Email {
     this.valor = valor;
   }
 
-  static crear(input: string): Email {
+  static crear(input: string): Result<Email, EmailInvalido> {
     const normalizado = input.trim().toLowerCase();
 
     if (!EMAIL_REGEX.test(normalizado)) {
-      throw new EmailInvalidoError({ valorRecibido: input });
+      return err({ kind: 'EmailInvalido', valorRecibido: input });
     }
 
-    return new Email(normalizado);
+    return ok(new Email(normalizado));
   }
 
   toString(): string {

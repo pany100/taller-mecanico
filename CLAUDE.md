@@ -63,6 +63,13 @@ plantearlo en vez de ignorarla.
   `vitest.config.ts`). **Cero imports relativos**: ningún import arranca con
   `./` ni `../`, incluso vecinos del mismo directorio. Si un import empieza
   con `.`, está mal.
+  - **Excepción única — barrels de paquete (`src/index.ts`)**: pueden usar
+    imports relativos (`./...`). Motivo técnico: el alias `@/*` está definido
+    por paquete y colisiona cuando otro paquete consume este barrel (TS
+    resuelve los `@/` del barrel con los `paths` del consumidor, no del
+    consumido). Un relativo en el barrel se resuelve igual lo lea quien lo
+    lea. La excepción aplica solo a los `index.ts` de paquete, no al resto
+    del código.
 - Los límites entre capas los hace cumplir ESLint (plugin de
   boundaries). Si un import viola la hexagonal, el lint falla: no
   silenciar la regla, corregir el import.
@@ -89,15 +96,20 @@ plantearlo en vez de ignorarla.
   los puertos/dependencias, `input` son los datos de la llamada.
 - Los puertos (interfaces) son propiedad de `application` y viven en
   `ports/` (dentro de su feature); `infrastructure` los implementa.
-- Los casos de uso devuelven un Result tipado (`{ ok: true; value } | { ok:
-  false; error }`, definido en `application/src/shared/result.ts`) para los
-  errores de negocio. Las fallas técnicas inesperadas (DB caída, bugs,
-  invariantes de dominio) se lanzan como excepciones y las absorbe un error
-  boundary en web.
-- Corte: si el caso de uso DECIDE el final → Result; si algo REVENTÓ por
-  debajo → excepción.
-- Los errores de negocio son tipos discriminados (`{ kind: '...' }`) en el
-  lado `error` del Result; la capa de presentación los traduce a strings.
+- **Modelo de errores por capas (regla pareja: el núcleo no lanza para lo
+  que chequea)**:
+  - **Dominio / application**: nunca lanzan para errores esperables.
+    Devuelven `Result` (tipado `{ ok: true; value } | { ok: false; error }`,
+    definido en `packages/domain/src/shared/result/result.ts` y exportado
+    por el barrel de `@taller/domain`). Las factories (`Email.crear`,
+    `Persona.crear`, etc.) devuelven `Result`, no lanzan.
+  - **Infraestructura**: puede lanzar; las excepciones se capturan y se
+    traducen a errores técnicos, o se dejan subir.
+  - **Borde (Server Action / API)**: convierte `Result` a respuesta para la
+    UI; un error boundary global captura lo inesperado.
+- Los errores de negocio son tipos discriminados (`{ kind: '...' }`) con
+  payload en el lado `error` del Result; la capa de presentación los traduce
+  a strings.
 
 ---
 

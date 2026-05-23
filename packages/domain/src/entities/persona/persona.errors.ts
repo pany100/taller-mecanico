@@ -1,18 +1,9 @@
-export class NombreVacioError extends Error {
-  constructor() {
-    super('Nombre is empty');
-    this.name = 'NombreVacioError';
-  }
-}
+export type NombreVacio = { kind: 'NombreVacio' };
 
-export class NombreMuyLargoError extends Error {
-  readonly maximo: number;
-  readonly largoRecibido: number;
+export type NombreMuyLargo = {
+  kind: 'NombreMuyLargo';
+  maximo: number;
+  largoRecibido: number;
+};
 
-  constructor(payload: { maximo: number; largoRecibido: number }) {
-    super('Nombre exceeds max length');
-    this.name = 'NombreMuyLargoError';
-    this.maximo = payload.maximo;
-    this.largoRecibido = payload.largoRecibido;
-  }
-}
+export type PersonaError = NombreVacio | NombreMuyLargo;

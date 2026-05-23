@@ -1,43 +1,64 @@
 import { describe, expect, it } from 'vitest';
 
 import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
-import { PasswordHashVacioError } from '@/shared/value-objects/password-hash/password-hash.errors';
 
 describe('PasswordHash · crear', () => {
   it('crea un PasswordHash válido y .valor lo devuelve exacto', () => {
-    const hash = PasswordHash.crear('abc123');
+    const resultado = PasswordHash.crear('abc123');
 
-    expect(hash.valor).toBe('abc123');
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.valor).toBe('abc123');
+    }
   });
 
   it('guarda un hash estilo bcrypt sin tocarlo', () => {
     const bcrypt =
       '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 
-    const hash = PasswordHash.crear(bcrypt);
+    const resultado = PasswordHash.crear(bcrypt);
 
-    expect(hash.valor).toBe(bcrypt);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.valor).toBe(bcrypt);
+    }
   });
 
-  it('tira PasswordHashVacioError cuando el input es vacío', () => {
-    expect(() => PasswordHash.crear('')).toThrow(PasswordHashVacioError);
+  it('devuelve PasswordHashVacio cuando el input es vacío', () => {
+    const resultado = PasswordHash.crear('');
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.error.kind).toBe('PasswordHashVacio');
+    }
   });
 
-  it('tira PasswordHashVacioError cuando el input es solo espacios', () => {
-    expect(() => PasswordHash.crear('   ')).toThrow(PasswordHashVacioError);
+  it('devuelve PasswordHashVacio cuando el input es solo espacios', () => {
+    const resultado = PasswordHash.crear('   ');
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.error.kind).toBe('PasswordHashVacio');
+    }
   });
 
   it('NO trimmea el valor guardado: conserva espacios al borde', () => {
     const conEspacios = '   $2b$10$abc   ';
 
-    const hash = PasswordHash.crear(conEspacios);
+    const resultado = PasswordHash.crear(conEspacios);
 
-    expect(hash.valor).toBe(conEspacios);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.valor).toBe(conEspacios);
+    }
   });
 
   it('toString() devuelve lo mismo que .valor', () => {
-    const hash = PasswordHash.crear('abc123');
+    const resultado = PasswordHash.crear('abc123');
 
-    expect(hash.toString()).toBe(hash.valor);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.toString()).toBe(resultado.value.valor);
+    }
   });
 });

@@ -1,4 +1,5 @@
-import { NombreMuyLargoError, NombreVacioError } from '@/entities/persona/persona.errors';
+import { type PersonaError } from '@/entities/persona/persona.errors';
+import { err, ok, type Result } from '@/shared/result/result';
 
 const NOMBRE_LARGO_MAXIMO = 150;
 
@@ -20,25 +21,27 @@ export class Persona {
     this.actualizadoEn = actualizadoEn;
   }
 
-  static crear(input: { id: string; nombre: string; creadoEn: Date }): Persona {
+  static crear(input: {
+    id: string;
+    nombre: string;
+    creadoEn: Date;
+  }): Result<Persona, PersonaError> {
     const nombreTrimmeado = input.nombre.trim();
 
     if (nombreTrimmeado.length === 0) {
-      throw new NombreVacioError();
+      return err({ kind: 'NombreVacio' });
     }
 
     if (nombreTrimmeado.length > NOMBRE_LARGO_MAXIMO) {
-      throw new NombreMuyLargoError({
+      return err({
+        kind: 'NombreMuyLargo',
         maximo: NOMBRE_LARGO_MAXIMO,
         largoRecibido: nombreTrimmeado.length,
       });
     }
 
-    return new Persona(
-      input.id,
-      nombreTrimmeado,
-      input.creadoEn,
-      input.creadoEn,
+    return ok(
+      new Persona(input.id, nombreTrimmeado, input.creadoEn, input.creadoEn),
     );
   }
 }

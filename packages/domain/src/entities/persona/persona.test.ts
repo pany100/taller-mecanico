@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { NombreMuyLargoError, NombreVacioError } from '@/entities/persona/persona.errors';
 import { Persona } from '@/entities/persona/persona';
 
 describe('Persona · crear', () => {
@@ -8,93 +7,131 @@ describe('Persona · crear', () => {
   const FECHA_FIJA = new Date('2026-05-21T12:00:00.000Z');
 
   it('crea una Persona válida con los datos provistos', () => {
-    const persona = Persona.crear({
+    const resultado = Persona.crear({
       id: ID_FIJO,
       nombre: 'Juana Pérez',
       creadoEn: FECHA_FIJA,
     });
 
-    expect(persona.id).toBe(ID_FIJO);
-    expect(persona.nombre).toBe('Juana Pérez');
-    expect(persona.creadoEn).toBe(FECHA_FIJA);
-    expect(persona.actualizadoEn).toBe(FECHA_FIJA);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.id).toBe(ID_FIJO);
+      expect(resultado.value.nombre).toBe('Juana Pérez');
+      expect(resultado.value.creadoEn).toBe(FECHA_FIJA);
+      expect(resultado.value.actualizadoEn).toBe(FECHA_FIJA);
+    }
   });
 
   it('actualizadoEn arranca igual a creadoEn al crear', () => {
-    const persona = Persona.crear({
+    const resultado = Persona.crear({
       id: ID_FIJO,
       nombre: 'Juana Pérez',
       creadoEn: FECHA_FIJA,
     });
 
-    expect(persona.actualizadoEn).toEqual(persona.creadoEn);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.actualizadoEn).toEqual(resultado.value.creadoEn);
+    }
   });
 
   it('guarda el nombre trimmeado cuando viene con espacios alrededor', () => {
-    const persona = Persona.crear({
+    const resultado = Persona.crear({
       id: ID_FIJO,
       nombre: '   Juana Pérez   ',
       creadoEn: FECHA_FIJA,
     });
 
-    expect(persona.nombre).toBe('Juana Pérez');
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.nombre).toBe('Juana Pérez');
+    }
   });
 
-  it('tira NombreVacioError cuando el nombre es vacío', () => {
-    expect(() =>
-      Persona.crear({ id: ID_FIJO, nombre: '', creadoEn: FECHA_FIJA }),
-    ).toThrow(NombreVacioError);
+  it('devuelve NombreVacio cuando el nombre es vacío', () => {
+    const resultado = Persona.crear({
+      id: ID_FIJO,
+      nombre: '',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.error.kind).toBe('NombreVacio');
+    }
   });
 
-  it('tira NombreVacioError cuando el nombre es solo espacios', () => {
-    expect(() =>
-      Persona.crear({ id: ID_FIJO, nombre: '   ', creadoEn: FECHA_FIJA }),
-    ).toThrow(NombreVacioError);
+  it('devuelve NombreVacio cuando el nombre es solo espacios', () => {
+    const resultado = Persona.crear({
+      id: ID_FIJO,
+      nombre: '   ',
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.error.kind).toBe('NombreVacio');
+    }
   });
 
-  it('tira NombreMuyLargoError cuando el nombre supera 150 caracteres', () => {
+  it('devuelve NombreMuyLargo cuando el nombre supera 150 caracteres', () => {
     const nombreLargo = 'a'.repeat(151);
 
-    expect(() =>
-      Persona.crear({ id: ID_FIJO, nombre: nombreLargo, creadoEn: FECHA_FIJA }),
-    ).toThrow(NombreMuyLargoError);
+    const resultado = Persona.crear({
+      id: ID_FIJO,
+      nombre: nombreLargo,
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) {
+      expect(resultado.error.kind).toBe('NombreMuyLargo');
+    }
   });
 
   it('acepta un nombre de exactamente 150 caracteres', () => {
     const nombre = 'a'.repeat(150);
 
-    const persona = Persona.crear({
+    const resultado = Persona.crear({
       id: ID_FIJO,
       nombre,
       creadoEn: FECHA_FIJA,
     });
 
-    expect(persona.nombre).toBe(nombre);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.nombre).toBe(nombre);
+    }
   });
 
   it('acepta un nombre con espacios alrededor cuyo trim deja 150 caracteres', () => {
     const nombre = `   ${'a'.repeat(150)}   `;
 
-    const persona = Persona.crear({
+    const resultado = Persona.crear({
       id: ID_FIJO,
       nombre,
       creadoEn: FECHA_FIJA,
     });
 
-    expect(persona.nombre).toBe('a'.repeat(150));
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.value.nombre).toBe('a'.repeat(150));
+    }
   });
 
-  it('NombreMuyLargoError lleva el payload correcto (maximo y largoRecibido)', () => {
+  it('NombreMuyLargo lleva el payload correcto (maximo y largoRecibido)', () => {
     const nombreLargo = 'a'.repeat(151);
 
-    try {
-      Persona.crear({ id: ID_FIJO, nombre: nombreLargo, creadoEn: FECHA_FIJA });
-      expect.fail('Se esperaba que tirara NombreMuyLargoError');
-    } catch (error) {
-      expect(error).toBeInstanceOf(NombreMuyLargoError);
-      const e = error as NombreMuyLargoError;
-      expect(e.maximo).toBe(150);
-      expect(e.largoRecibido).toBe(151);
+    const resultado = Persona.crear({
+      id: ID_FIJO,
+      nombre: nombreLargo,
+      creadoEn: FECHA_FIJA,
+    });
+
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok && resultado.error.kind === 'NombreMuyLargo') {
+      expect(resultado.error.maximo).toBe(150);
+      expect(resultado.error.largoRecibido).toBe(151);
     }
   });
 });

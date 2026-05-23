@@ -65,6 +65,8 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Puertos de iniciarSesion: lista y ubicación](#2026-05-22--puertos-de-iniciarsesion-lista-y-ubicación)
 - **2026-05-22** · [Firmas de los puertos de iniciarSesion](#2026-05-22--firmas-de-los-puertos-de-iniciarsesion)
 - **2026-05-22** · [Firma de Sesion.crear](#2026-05-22--firma-de-sesioncrear)
+- **2026-05-22** · [Excepción: imports relativos permitidos en barrels de paquete](#2026-05-22--excepción-imports-relativos-permitidos-en-barrels-de-paquete)
+- **2026-05-22** · [Modelo de errores por capas: no throw para esperables](#2026-05-22--modelo-de-errores-por-capas-no-throw-para-esperables)
 
 ---
 
@@ -1763,6 +1765,81 @@ el `readonly`. Las dos opciones —renovación inmutable (crear instancia nueva,
 todo sigue `readonly`) vs. mutar esos dos campos (método `renovar`)— se evalúan
 cuando se implemente la validación por request (punto 5 del roadmap), con el caso
 de uso de renovación delante. Hoy: todo `readonly`.
+
+---
+
+## 2026-05-22 · Excepción: imports relativos permitidos en barrels de paquete
+
+Precisa la decisión "Path aliases @/* por paquete; imports relativos prohibidos"
+del mismo día.
+
+**Qué decidimos**: los barrels de paquete (`index.ts` que reexporta el API
+público del paquete) pueden usar imports relativos (`./...`). El resto del
+código mantiene cero relativos: todo import intra-paquete sigue usando `@/...`.
+
+**Por qué**: el alias `@/*` está definido por paquete (cada uno apunta a su
+propio `src/`). Cuando un paquete consume a otro vía su barrel (ej. application
+lee `domain/src/index.ts`), TypeScript resuelve los `@/` de ese barrel con los
+`paths` del paquete consumidor, no del consumido — el `@/` de domain se lee con
+el diccionario de application y no resuelve. Un import relativo en el barrel no
+depende de ningún `paths`, así que se resuelve correctamente lo lea quien lo
+lea. La excepción es chica y auditable: aplica solo a los `index.ts` de paquete
+(hoy 2), no a la lógica.
+
+**Qué descartamos**:
+- Project references (composite + references): la solución de fondo, pero es
+  trabajo de infra no trivial; se difiere. Queda como mejora futura si el
+  cableado entre paquetes se complica.
+- Subpath exports con auto-referencia del barrel (`@taller/domain/...` vía
+  wildcard en package.json): funciona pero mete un patrón opaco difícil de
+  entender después.
+- Renombrar el alias por paquete (`@d/*`, `@a/*`): elimina la colisión pero
+  obliga a tocar todos los imports del repo; desproporcionado.
+
+**Pendiente**: si el monorepo crece y la resolución cross-paquete se vuelve
+problemática en más lugares, evaluar project references (D3) como solución de
+fondo que vuelve innecesaria esta excepción.
+
+---
+
+## 2026-05-22 · Modelo de errores por capas: no throw para esperables
+
+Reemplaza el corte de "2026-05-22 · Manejo de resultados y errores en casos de
+uso (Result vs throw)" en su parte de dominio: el dominio ya no lanza para
+errores esperables.
+
+**Qué decidimos**:
+
+- **Dominio / application**: no lanzan para errores esperables; devuelven
+  `Result` con errores conocidos (tipos discriminados `{ kind }` con payload).
+  Las factories (`Email.crear`, `Persona.crear`, `PasswordHash.crear`,
+  `Usuario.crear`) devuelven `Result`, nunca lanzan.
+- **Infraestructura**: puede lanzar; se captura y traduce a error técnico, o se
+  deja subir.
+- **Borde (Server Action/API)**: convierte `Result` a respuesta; error boundary
+  global captura lo inesperado.
+
+Cambios concretos:
+- Los 5 errores (`EmailInvalido`, `NombreVacio`, `NombreMuyLargo`,
+  `PasswordHashVacio`, `UsuarioSinPersona`) pasan de clases `Error` a tipos
+  discriminados con payload. Se eliminan las clases `*Error`.
+- `Result` se mueve a domain (ver entrada de Result/barrels); las factories de
+  dominio lo devuelven.
+
+**Por qué**:
+- Sistema chico (5 errores, pocos call sites): unificar ahora cuesta poco y el
+  costo solo crecería.
+- Una regla mecánica por capa ("dominio no lanza") evita clasificar error por
+  error si es bug o esperable.
+- Errores como valor (Result) hacen que la firma declare los finales y el
+  compilador obligue a manejarlos.
+
+**Qué descartamos**:
+- Mantener throw para invariantes de entidad (la convención dual anterior).
+- Clasificar caso por caso bug-vs-esperable: se prefirió regla pareja por capa.
+
+Las excepciones quedan para fallas técnicas de infra y lo inesperado, no para
+finales de dominio.
 
 ---
 

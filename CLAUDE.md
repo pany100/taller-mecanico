@@ -56,8 +56,13 @@ plantearlo en vez de ignorarla.
   a un caso de uso, devolver resultado. Sin lógica de negocio.
 - Las invariantes de dominio se hacen cumplir en el constructor de la
   entidad, no solo en validaciones de formulario.
-- **Imports internos** usan el scope `@taller/*` (ej.
+- **Imports cross-paquete** usan el scope `@taller/*` (ej.
   `import { iniciarSesion } from '@taller/application'`).
+- **Imports intra-paquete** usan el alias `@/*` que apunta a `src/*` del
+  paquete actual (configurado en cada `tsconfig.json` y en cada
+  `vitest.config.ts`). **Cero imports relativos**: ningún import arranca con
+  `./` ni `../`, incluso vecinos del mismo directorio. Si un import empieza
+  con `.`, está mal.
 - Los límites entre capas los hace cumplir ESLint (plugin de
   boundaries). Si un import viola la hexagonal, el lint falla: no
   silenciar la regla, corregir el import.
@@ -68,13 +73,22 @@ plantearlo en vez de ignorarla.
 - `apps/web` depende solo de `application`, nunca de `domain` (ni tipos).
   Los DTOs los define y exporta `application`. Los ViewModels de una
   pantalla viven en `web` y se mapean desde los DTOs.
-- `packages/application` se organiza con `use-cases/` y `ports/` hermanos,
-  planos por concepto. Carpetas de capa en inglés; concepto del caso en
-  español.
+- `packages/application` se organiza por feature: cada contexto es una
+  carpeta bajo `src/` con sus subcarpetas (`auth/{use-cases, ports, entities}`,
+  y a futuro `client/{...}`). Lo transversal del paquete va en
+  `application/src/shared/`. Carpetas de capa en inglés; concepto del caso
+  en español.
+- `packages/domain` agrupa bajo categorías al mismo nivel de `src/`:
+  `entities/{persona, usuario}` y `shared/{value-objects, errors}`. Sin
+  conceptos sueltos en la raíz de `src/`.
+- Las entidades específicas de auth (ej. `Sesion`) viven en
+  `application/src/auth/entities/`, no en domain. Sus reglas se aplican en
+  su factory (`Sesion.crear`); los efectos (id, token, hora) se inyectan
+  desde afuera.
 - Los casos de uso son funciones con firma `(deps, input)`: `deps` agrupa
   los puertos/dependencias, `input` son los datos de la llamada.
 - Los puertos (interfaces) son propiedad de `application` y viven en
-  `ports/`; `infrastructure` los implementa.
+  `ports/` (dentro de su feature); `infrastructure` los implementa.
 - Los casos de uso devuelven un Result tipado (`{ ok: true; value } | { ok:
   false; error }`, definido en `application/src/shared/result.ts`) para los
   errores de negocio. Las fallas técnicas inesperadas (DB caída, bugs,

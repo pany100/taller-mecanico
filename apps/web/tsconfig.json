@@ -6,6 +6,9 @@
     "incremental": true,
     "noEmit": true,
     "allowJs": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "plugins": [{ "name": "next" }]
   },
   "include": [

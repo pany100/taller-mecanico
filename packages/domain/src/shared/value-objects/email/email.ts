@@ -1,4 +1,4 @@
-import { EmailInvalidoError } from './email.errors';
+import { EmailInvalidoError } from '@/shared/value-objects/email/email.errors';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

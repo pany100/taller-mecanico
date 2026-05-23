@@ -1,4 +1,4 @@
-import { PasswordHashVacioError } from './password-hash.errors';
+import { PasswordHashVacioError } from '@/shared/value-objects/password-hash/password-hash.errors';
 
 export class PasswordHash {
   readonly valor: string;

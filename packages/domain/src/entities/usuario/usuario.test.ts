@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { Persona } from '../persona/persona';
-import { Email } from '../shared/value-objects/email/email';
-import { PasswordHash } from '../shared/value-objects/password-hash/password-hash';
-import { Rol } from './rol';
-import { Usuario } from './usuario';
-import { UsuarioSinPersonaError } from './usuario.errors';
+import { Persona } from '@/entities/persona/persona';
+import { Email } from '@/shared/value-objects/email/email';
+import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
+import { Rol } from '@/entities/usuario/rol';
+import { Usuario } from '@/entities/usuario/usuario';
+import { UsuarioSinPersonaError } from '@/entities/usuario/usuario.errors';
 
 describe('Usuario · crear', () => {
   const ID_USUARIO = '22222222-2222-2222-2222-222222222222';

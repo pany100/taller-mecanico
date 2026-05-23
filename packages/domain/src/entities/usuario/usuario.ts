@@ -1,8 +1,8 @@
-import { Persona } from '../persona/persona';
-import { Email } from '../shared/value-objects/email/email';
-import { PasswordHash } from '../shared/value-objects/password-hash/password-hash';
-import { Rol } from './rol';
-import { UsuarioSinPersonaError } from './usuario.errors';
+import { Persona } from '@/entities/persona/persona';
+import { Email } from '@/shared/value-objects/email/email';
+import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
+import { Rol } from '@/entities/usuario/rol';
+import { UsuarioSinPersonaError } from '@/entities/usuario/usuario.errors';
 
 export class Usuario {
   readonly id: string;

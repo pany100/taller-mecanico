@@ -1,4 +1,4 @@
-import { NombreMuyLargoError, NombreVacioError } from './persona.errors';
+import { NombreMuyLargoError, NombreVacioError } from '@/entities/persona/persona.errors';
 
 const NOMBRE_LARGO_MAXIMO = 150;
 

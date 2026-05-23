@@ -59,6 +59,9 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Estructura y forma de la capa de aplicación](#2026-05-22--estructura-y-forma-de-la-capa-de-aplicación)
 - **2026-05-22** · [Set de roles cerrado en el patrón `<concepto>.<rol>.ts`](#2026-05-22--set-de-roles-cerrado-en-el-patrón-conceptorolts)
 - **2026-05-22** · [Manejo de resultados y errores en casos de uso (Result vs throw)](#2026-05-22--manejo-de-resultados-y-errores-en-casos-de-uso-result-vs-throw)
+- **2026-05-22** · [Organización por feature en application y entities/ en domain](#2026-05-22--organización-por-feature-en-application-y-entities-en-domain)
+- **2026-05-22** · [Sesion como entidad de application](#2026-05-22--sesion-como-entidad-de-application)
+- **2026-05-22** · [Path aliases `@/*` por paquete; imports relativos prohibidos](#2026-05-22--path-aliases--por-paquete-imports-relativos-prohibidos)
 
 ---
 
@@ -1386,6 +1389,156 @@ Extiende la decisión "Nomenclatura de archivos: `<concepto>.<rol>.ts`" del
 Nota: el dominio sigue usando excepciones para invariantes rotas (ej.
 `Usuario.crear` lanza `UsuarioSinPersonaError`); eso es coherente con el corte
 (una invariante rota es un bug, no una decisión de negocio).
+
+---
+
+## 2026-05-22 · Organización por feature en application y entities/ en domain
+
+**Qué decidimos**:
+
+- **`application` se organiza por feature**, no plano. Cada feature es una
+  carpeta bajo `src/` con sus subcarpetas:
+  `application/src/auth/{use-cases, ports, entities}`. A futuro,
+  `application/src/client/{...}`, etc. Lo transversal del paquete vive en
+  `application/src/shared/` (ej. `result.ts`).
+- **`domain` agrupa todo bajo categorías** al mismo nivel de `src/`, sin
+  conceptos sueltos: `domain/src/entities/{persona, usuario}` y
+  `domain/src/shared/{value-objects, errors}`.
+
+**Por qué**:
+
+- En application, la feature `auth` ya no es una agrupación vacía: contiene
+  entidad (`Sesion`), casos de uso y puertos. Agrupar por feature mantiene junto
+  todo lo de un mismo contexto y escala a `client`, `vehiculos`, etc. sin
+  mezclar.
+- En domain, tener `persona/` y `usuario/` (conceptos sueltos) conviviendo con
+  `shared/` (una agrupación) al mismo nivel era inconsistente: se mezclaba
+  "concepto individual" con "grupo". Subir las entidades a `entities/` deja todo
+  el nivel `src/` como agrupaciones homogéneas; si mañana aparece otra categoría
+  (`services/`, `policies/`), convive al mismo nivel sin romper el criterio.
+
+**Qué descartamos**:
+
+- Mantener application plano (`use-cases/` y `ports/` hermanos sin feature): se
+  abandona ahora que `auth` tiene contenido real más allá de casos de uso.
+- Dejar domain con entidades sueltas al lado de `shared/`: inconsistencia de
+  niveles (concepto vs. agrupación conviviendo).
+
+Se asume la asimetría de que `entities/` agrupa por tipo y `shared/` por alcance
+(transversal): es inofensiva y se prefiere antes que perseguir simetría perfecta.
+
+Modifica la decisión "2026-05-22 · Estructura y forma de la capa de aplicación"
+(que definía application plano, sin agrupar por feature). El resto de esa
+decisión (use-cases/ports como conceptos, idioma, función `(deps, input)`,
+ports propiedad de application) sigue vigente; solo cambia que ahora viven
+dentro de cada feature.
+
+---
+
+## 2026-05-22 · Sesion como entidad de application
+
+**Qué decidimos**:
+
+- `Sesion` es una **entidad de application**, no de domain. Vive en
+  `application/src/auth/entities/`. La **tabla** `sesion` (schema Drizzle) vive
+  en `infrastructure`, como toda persistencia.
+- `Sesion` tiene reglas propias que se aplican **dentro de su factory**
+  (`Sesion.crear`), no en el caso de uso ni en infra: la política de expiración
+  (creado + 7 días) y `usuarioRealId = usuarioId` al nacer (sin masquerade).
+- Los **efectos** (id, token, hora actual) NO se generan dentro de `Sesion.crear`:
+  entran ya resueltos desde afuera, inyectados por el caso de uso vía puertos.
+  Mismo patrón que las entidades de domain (id/fechas/VOs inyectados).
+
+**Por qué**:
+
+- Una sesión es mecanismo de autenticación, no un concepto del taller (no pasa
+  el test "¿lo entendería alguien del taller?"), así que no va en domain. Pero
+  tiene reglas reales (duración, real=user) que deben vivir en el núcleo
+  (application), no derramadas en el caso de uso ni en un adapter de infra.
+- Tener tabla no obliga a estar en domain: tabla (infra) y entidad (application)
+  son piezas distintas en capas distintas, igual que `Persona` (entidad en
+  domain) y su tabla (schema en infra).
+- Separar reglas (adentro de `Sesion.crear`) de efectos (inyectados) mantiene la
+  entidad pura y testeable: en un test se le pasan id/token/hora fijos y se
+  verifica la regla de expiración sin tocar reloj real ni aleatoriedad.
+- El caso de uso no debe conocer la "receta" interna de una sesión (cuántos
+  días, real=user): solo provee los efectos y pide crearla.
+
+**Qué descartamos**:
+
+- `Sesion` en domain (uniformidad con Persona/Usuario): se priorizó mantener el
+  núcleo de dominio limpio de conceptos de auth.
+- Un servicio (`SesionService`/`SesionMaker`) que arme la sesión: si solo
+  envuelve `Sesion.crear`, es indirección sin pago; el caso de uso llama directo
+  a la factory. (Un servicio se justificaría si agrupara lógica real, no por
+  envolver una llamada.)
+- Generar token/hora/id dentro de `Sesion.crear`: rompería la pureza y haría la
+  entidad no testeable; además mete efectos en lógica de reglas.
+- Aplicar las reglas (7 días) en infra: pondría política de negocio en un
+  adapter.
+
+Quedan pendientes para la implementación del login: los puertos de efectos
+(`Reloj`, `IdGenerator`, generador de token), el puerto de persistencia de
+sesión, qué devuelve el caso, y si el token se guarda plano o hasheado.
+
+---
+
+## 2026-05-22 · Path aliases `@/*` por paquete; imports relativos prohibidos
+
+**Qué decidimos**:
+
+- Cada paquete declara en su `tsconfig.json` el alias `@/*` apuntando a `./src/*`
+  (sin `baseUrl`: en TS moderno los `paths` se resuelven relativos al tsconfig,
+  y `baseUrl` está deprecado para TS 7).
+- **Cero imports relativos** dentro de un paquete. Todo import intra-paquete
+  arranca con `@/...`, incluso vecinos del mismo directorio
+  (`persona.ts` importa `@/entities/persona/persona.errors`, no
+  `./persona.errors`).
+- **Cross-paquete sigue por scope `@taller/*`** vía el barrel (sin cambios:
+  `@taller/domain`, `@taller/application`, `@taller/infrastructure`). El alias
+  `@/*` es estrictamente intra-paquete.
+- Cableado:
+  - **TypeScript**: `paths` en el `tsconfig.json` de cada paquete y de
+    `apps/web`.
+  - **Vitest**: `resolve.alias` en cada `vitest.config.ts`, resuelto con
+    `fileURLToPath(new URL('./src', import.meta.url))`. Sin dependencias nuevas
+    (no `vite-tsconfig-paths`).
+  - **ESLint**: el resolver `eslint-import-resolver-typescript` que ya estaba
+    configurado lee los `paths` del tsconfig automáticamente; no requiere
+    cambios.
+
+**Por qué**:
+
+- Imports con `../../shared/...` se vuelven frágiles ante movimientos de
+  archivos: mover una entidad un nivel arriba o abajo cambia la cantidad de
+  `..` en cada import. Con alias absoluto, mover un archivo no toca sus
+  imports.
+- Regla mecánica y enforceable: si un import empieza con `.`, está mal. Es más
+  fácil de revisar y de auditar con un grep que "depende de cuántos niveles
+  cruza".
+- `@/*` por paquete (no un alias global del monorepo) preserva el límite
+  hexagonal: dentro de domain, `@/entities/...` es claramente domain; no se
+  confunde con código de otra capa. El cruce de capa sigue siendo explícito vía
+  `@taller/*`.
+- Quitar `baseUrl` evita la deprecation warning de TS 7 sin perder
+  funcionalidad: los `paths` solos alcanzan con TS moderno.
+- Configurar Vitest con `resolve.alias` a mano (vs. `vite-tsconfig-paths`)
+  evita una dependencia nueva para algo que son 4 líneas; respeta "no agregar
+  dependencias sin decidirlo".
+
+**Qué descartamos**:
+
+- Imports relativos para vecinos del mismo directorio (`./persona.errors`): la
+  regla "permitir hermanos, prohibir `../`" es más sutil y se cumple mal. La
+  regla "ninguno empieza con `.`" es trivial de hacer cumplir.
+- Subpath del scope (`@taller/domain/entities/persona/...`) para imports
+  intra-paquete: cada movimiento de archivos obligaría a tocar el campo
+  `exports` del `package.json` del paquete, y los imports a vecinos quedarían
+  desproporcionadamente largos.
+- `vite-tsconfig-paths` como dependencia: cuatro líneas de `resolve.alias`
+  manual hacen lo mismo sin sumar peso.
+- Dejar `baseUrl: "."` para silenciar la deprecation con `ignoreDeprecations`:
+  esconder un aviso que TS 7 va a remover no es solución.
 
 ---
 

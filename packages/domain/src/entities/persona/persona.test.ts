@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { NombreMuyLargoError, NombreVacioError } from './persona.errors';
-import { Persona } from './persona';
+import { NombreMuyLargoError, NombreVacioError } from '@/entities/persona/persona.errors';
+import { Persona } from '@/entities/persona/persona';
 
 describe('Persona · crear', () => {
   const ID_FIJO = '11111111-1111-1111-1111-111111111111';

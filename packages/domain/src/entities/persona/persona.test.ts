@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Persona } from '@/entities/persona/persona';
+import { Persona } from './persona';
 
 describe('Persona · crear', () => {
   const ID_FIJO = '11111111-1111-1111-1111-111111111111';

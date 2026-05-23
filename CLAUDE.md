@@ -58,18 +58,23 @@ plantearlo en vez de ignorarla.
   entidad, no solo en validaciones de formulario.
 - **Imports cross-paquete** usan el scope `@taller/*` (ej.
   `import { iniciarSesion } from '@taller/application'`).
-- **Imports intra-paquete** usan el alias `@/*` que apunta a `src/*` del
-  paquete actual (configurado en cada `tsconfig.json` y en cada
-  `vitest.config.ts`). **Cero imports relativos**: ningún import arranca con
-  `./` ni `../`, incluso vecinos del mismo directorio. Si un import empieza
-  con `.`, está mal.
-  - **Excepción única — barrels de paquete (`src/index.ts`)**: pueden usar
-    imports relativos (`./...`). Motivo técnico: el alias `@/*` está definido
-    por paquete y colisiona cuando otro paquete consume este barrel (TS
-    resuelve los `@/` del barrel con los `paths` del consumidor, no del
-    consumido). Un relativo en el barrel se resuelve igual lo lea quien lo
-    lea. La excepción aplica solo a los `index.ts` de paquete, no al resto
-    del código.
+- **Imports intra-paquete** dependen del rol del paquete:
+  - **Paquetes "hoja" (no se consumen como librería)**: `application` y
+    `apps/web` usan el alias `@/*` que apunta a `src/*` del paquete actual
+    (configurado en cada `tsconfig.json` y en cada `vitest.config.ts`).
+    **Cero imports relativos**: ningún import arranca con `./` ni `../`,
+    incluso vecinos del mismo directorio. Si un import empieza con `.`,
+    está mal.
+  - **Paquetes consumidos como librería**: hoy `domain` usa imports
+    **relativos** (`./...`, `../...`) en todo su código (entidades, value
+    objects, errors, tests, barrel). El alias `@/*` no se usa en domain.
+    Motivo técnico: cuando otro paquete consume archivos de domain, TS y
+    vitest resuelven los `paths` del archivo leído con la config del paquete
+    consumidor, no del consumido — los dos definen `@/*` y colisiona. Un
+    relativo no depende de `paths` y resuelve igual lo lea quien lo lea.
+    **Estado provisorio**: la solución de fondo (project references +
+    plugin de paths para vitest) está pendiente; cuando se haga, domain
+    vuelve a `@/*`.
 - Los límites entre capas los hace cumplir ESLint (plugin de
   boundaries). Si un import viola la hexagonal, el lint falla: no
   silenciar la regla, corregir el import.

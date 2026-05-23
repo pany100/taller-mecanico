@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { Persona } from '@/entities/persona/persona';
-import { Email } from '@/shared/value-objects/email/email';
-import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
-import { Rol } from '@/entities/usuario/rol';
-import { Usuario } from '@/entities/usuario/usuario';
-import { type Result } from '@/shared/result/result';
+import { Persona } from '../persona/persona';
+import { Email } from '../../shared/value-objects/email/email';
+import { PasswordHash } from '../../shared/value-objects/password-hash/password-hash';
+import { Rol } from './rol';
+import { Usuario } from './usuario';
+import { type Result } from '../../shared/result/result';
 
 const desempaquetar = <T, E>(resultado: Result<T, E>): T => {
   if (!resultado.ok) {

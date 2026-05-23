@@ -67,6 +67,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Firma de Sesion.crear](#2026-05-22--firma-de-sesioncrear)
 - **2026-05-22** · [Excepción: imports relativos permitidos en barrels de paquete](#2026-05-22--excepción-imports-relativos-permitidos-en-barrels-de-paquete)
 - **2026-05-22** · [Modelo de errores por capas: no throw para esperables](#2026-05-22--modelo-de-errores-por-capas-no-throw-para-esperables)
+- **2026-05-22** · [Domain usa imports relativos en todo su código (provisorio)](#2026-05-22--domain-usa-imports-relativos-en-todo-su-código-provisorio)
 
 ---
 
@@ -1840,6 +1841,66 @@ Cambios concretos:
 
 Las excepciones quedan para fallas técnicas de infra y lo inesperado, no para
 finales de dominio.
+
+---
+
+## 2026-05-22 · Domain usa imports relativos en todo su código (provisorio)
+
+Amplía y supera la entrada "Excepción: imports relativos permitidos en barrels
+de paquete" del mismo día. La excepción no era suficiente: el problema del
+alias `@/*` colisionando se extiende a **todos** los archivos de domain que se
+leen transitivamente desde otro paquete, no solo al barrel.
+
+**Qué decidimos**:
+
+- `packages/domain` usa imports **relativos** (`./...`, `../...`) en todo su
+  código fuente: barrels, entidades, value objects, errors, tests.
+- El alias `@/*` se elimina del `tsconfig.json` y del `vitest.config.ts` de
+  domain (queda config muerta si no se borra).
+- `packages/application` y `apps/web` siguen con `@/*` y "cero relativos".
+  La regla "cero relativos" pasa a ser por paquete según su rol: paquetes
+  consumidos como librería (hoy domain) usan relativos; paquetes "hoja" siguen
+  con el alias.
+- **Esta decisión es provisoria**. La solución de fondo es project references
+  o un plugin de paths cross-package en vitest. Cuando se haga, domain vuelve
+  a `@/*`.
+
+**Por qué**:
+
+- Con `moduleResolution: "Bundler"` y sin project references, cuando un paquete
+  (ej. application) consume archivos de otro (domain) vía su barrel,
+  TypeScript y vitest resuelven los `paths` del archivo leído usando la config
+  del **proyecto consumidor**, no del consumido. Los dos paquetes tienen
+  `"@/*": ["./src/*"]`, así que un `import '@/shared/result/result'` dentro de
+  `domain/src/email.ts` se resuelve contra `application/src/...` cuando es
+  application quien lo lee — y no existe ahí.
+- La excepción "solo barrels" parecía suficiente cuando el barrel solo
+  reexportaba un archivo sin aliases (Result). En cuanto el barrel expuso
+  entidades (Email, Persona, Usuario), las cadenas internas de imports con
+  `@/` empezaron a romperse desde afuera. La fix tiene que cubrir todo
+  archivo alcanzable, no solo la primera capa.
+- Relativos en domain resuelven igual lo lea quien lo lea: no dependen de
+  ningún `paths`. Costo: menos uniforme estéticamente; legible igual porque
+  domain es chico.
+
+**Qué descartamos**:
+
+- Project references (`composite: true` + `references`) ahora: solo arregla
+  `tsc`. Vitest sigue leyendo source y choca con la misma colisión, así que
+  hay que sumar también `vite-tsconfig-paths` (rechazado en la entrada
+  "Path aliases @/* por paquete"). Combinar las dos cosas es la solución de
+  fondo, pero es trabajo de infra y revisión de decisión anterior. Se difiere.
+- Renombrar el alias por paquete (`@d/*`, `@a/*`): elimina la colisión sin
+  infra nueva, pero obliga a tocar todos los imports del repo y deja una capa
+  de cognición extra ("¿qué `@` me toca acá?"). Más caro que relativos en
+  domain solo.
+- Mantener la excepción "solo barrels" y agregar relativos también en cada
+  archivo que el barrel toque transitivamente: termina siendo lo mismo que
+  esta decisión pero contado de forma confusa.
+
+**Pendiente**: cuando el monorepo crezca o el roce de leer relativos en
+domain moleste, evaluar project references + `vite-tsconfig-paths` (o
+equivalente) como solución de fondo y volver domain a `@/*`.
 
 ---
 

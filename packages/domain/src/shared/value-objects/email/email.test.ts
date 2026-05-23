@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Email } from '@/shared/value-objects/email/email';
+import { Email } from './email';
 
 describe('Email · crear', () => {
   it('crea un Email válido y .valor devuelve el string normalizado', () => {

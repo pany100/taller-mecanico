@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
+import { PasswordHash } from './password-hash';
 
 describe('PasswordHash · crear', () => {
   it('crea un PasswordHash válido y .valor lo devuelve exacto', () => {

@@ -1,9 +1,9 @@
-import { Persona } from '@/entities/persona/persona';
-import { Email } from '@/shared/value-objects/email/email';
-import { PasswordHash } from '@/shared/value-objects/password-hash/password-hash';
-import { Rol } from '@/entities/usuario/rol';
-import { type UsuarioSinPersona } from '@/entities/usuario/usuario.errors';
-import { err, ok, type Result } from '@/shared/result/result';
+import { Persona } from '../persona/persona';
+import { Email } from '../../shared/value-objects/email/email';
+import { PasswordHash } from '../../shared/value-objects/password-hash/password-hash';
+import { Rol } from './rol';
+import { type UsuarioError } from './usuario.errors';
+import { err, ok, type Result } from '../../shared/result/result';
 
 export class Usuario {
   readonly id: string;
@@ -39,7 +39,7 @@ export class Usuario {
     passwordHash: PasswordHash;
     rol: Rol;
     creadoEn: Date;
-  }): Result<Usuario, UsuarioSinPersona> {
+  }): Result<Usuario, UsuarioError> {
     if (input.persona === null || input.persona === undefined) {
       return err({ kind: 'UsuarioSinPersona' });
     }

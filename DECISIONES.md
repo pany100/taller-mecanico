@@ -70,6 +70,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Domain usa imports relativos en todo su código (provisorio)](#2026-05-22--domain-usa-imports-relativos-en-todo-su-código-provisorio)
 - **2026-05-25** · [Alias único por paquete (X3): resolución cross-paquete en typecheck y Vitest](#2026-05-25--alias-único-por-paquete-x3-resolución-cross-paquete-en-typecheck-y-vitest)
 - **2026-05-25** · [Modelado de tablas de Etapa 0 (persona, usuario, sesion)](#2026-05-25--modelado-de-tablas-de-etapa-0-persona-usuario-sesion)
+- **2026-05-25** · [Testing de integración contra Postgres real](#2026-05-25--testing-de-integración-contra-postgres-real)
 
 ---
 
@@ -2053,6 +2054,128 @@ Postgres (`rol_usuario`) espejando los valores del tipo `Rol` del dominio;
 - `RESTRICT` en sesion→usuario por uniformidad: CASCADE es más natural para
   estado efímero; la uniformidad no aporta acá.
 - `citext`/`LOWER()` en DB para email CI: redundante con la normalización del VO.
+
+---
+
+## 2026-05-25 · Testing de integración contra Postgres real
+
+**Qué decidimos**: los tests de integración corren contra una DB Postgres real,
+no contra mocks ni una DB en memoria. Andamiaje:
+
+- **DB de test separada (`taller_test`) en el mismo contenedor** del
+  `docker-compose.yml` actual (`taller_db`). No se levanta un segundo
+  contenedor.
+- **Distinción unit vs. integración por sufijo de archivo**:
+  `*.integration.test.ts` para integración, `*.test.ts` (sin ese sufijo) para
+  unitarios. En `packages/infrastructure/vitest.config.ts` se declaran dos
+  *projects* de Vitest: `unit` (excluye el sufijo, sin globalSetup) e
+  `integration` (incluye solo el sufijo, con globalSetup y setupFiles). Los
+  tests unitarios siguen sin necesitar Postgres ni env vars.
+- **Variable de entorno separada** en `.env.test` (con `.env.test.example`
+  paralelo, commiteado). Define `DATABASE_URL` apuntando a `taller_test`.
+  Tanto `client.ts` como el migrator siguen leyendo `process.env.DATABASE_URL`
+  sin condicionales: el entorno lo provee `--env-file` (para los scripts) o el
+  parser inline (para Vitest).
+- **Carga de `.env.test` para Vitest**: parser mínimo inline en
+  `vitest.config.ts` que lee el archivo y rellena `process.env` solo si la
+  variable no estaba ya seteada (las vars del shell/CI siempre ganan). Sin
+  dependencias nuevas.
+- **Creación de la DB de test idempotente** vía
+  `pnpm db:test:create` (script `scripts/create-test-db.mjs` en
+  infrastructure que usa `pg` para conectarse al admin DB `postgres`, chequea
+  `pg_database` y crea solo si no existe).
+- **Migraciones contra `taller_test`**:
+  - Manual: `pnpm db:migrate:test` (igual que `db:migrate` pero con
+    `--env-file=../../.env.test`).
+  - Automática en cada corrida: el `globalSetup` de Vitest invoca el
+    `migrate()` programático de `drizzle-orm/node-postgres/migrator` (no
+    shellea drizzle-kit), resolviendo el path de las migraciones con
+    `fileURLToPath` (independiente del cwd).
+- **Aislamiento entre tests por truncate**: helper `truncateAll()` que ejecuta
+  `TRUNCATE TABLE persona, usuario, sesion RESTART IDENTITY CASCADE`. Cada
+  test hace `beforeEach(truncateAll)` en su describe. Sin rollback
+  transaccional.
+- **Conexión y helpers de test en `@infra/testing/db`**:
+  módulo dedicado (`packages/infrastructure/src/testing/db.ts`) que crea su
+  propio `Pool` y `DrizzleDb` apuntando a `taller_test`, y exporta `db`,
+  `DbTest` y `truncateAll()`. El singleton de
+  `src/persistence/drizzle/client.ts` queda intacto, reservado a dev/prod.
+  Los tests acceden por import explícito (`import { db, truncateAll } from
+  '@infra/testing/db'`); el mismo módulo se registra como `setupFiles` del
+  project de integración para fallar rápido si el entorno está mal armado.
+- **Fixtures en tests**: se insertan con Drizzle directo (`db.insert(...)`),
+  no a través de repos. El test arma el estado; el repo es el SUT.
+
+**Comandos clave** (referencia operativa):
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm --filter @taller/infrastructure db:test:create` | Crea `taller_test` si no existe (idempotente). |
+| `pnpm --filter @taller/infrastructure db:migrate:test` | Aplica las migraciones contra `taller_test` (manual). |
+| `pnpm --filter @taller/infrastructure test` | Corre solo el project `unit`. No requiere Postgres. |
+| `pnpm --filter @taller/infrastructure test:integration` | Corre el project `integration`: re-migra programáticamente y ejecuta los `*.integration.test.ts`. Requiere `docker compose up -d` previo. |
+
+**Por qué**:
+
+- **Postgres real, no mocks**: la capa de infraestructura existe para hablar
+  con la DB; testearla contra un fake confirma poco. Drizzle, los tipos de
+  Postgres (timestamps con TZ, enums, FKs) y las queries reales son
+  exactamente lo que el test tiene que ejercitar.
+- **Unit no requiere Postgres**: regla dura. Los unitarios tienen que correr
+  en cualquier checkout sin levantar nada. Por eso *projects* separados y la
+  ausencia de `globalSetup` en el project `unit`.
+- **Aislamiento por truncate**: simple y suficiente para una suite chica. El
+  truncate con `CASCADE` respeta las FKs sin tener que ordenar a mano. Rápido
+  porque las tablas están vacías casi siempre.
+- **DB separada (no rollback contra `taller_dev`)**: los tests no deben poder
+  pisar datos de desarrollo, ni siquiera por accidente en un experimento que
+  abortó. Una DB aparte hace ese error imposible.
+- **Mismo contenedor**: dos contenedores serían fricción operativa sin
+  beneficio (los tests no necesitan otra versión de Postgres ni recursos
+  separados).
+- **Migrar programáticamente en `globalSetup`**: garantiza que el schema esté
+  al día con la última migración del repo en cada corrida, sin obligar a
+  recordar correr `db:migrate:test` antes. Como las migraciones de Drizzle son
+  idempotentes (lleva tabla `__drizzle_migrations`), el costo es mínimo si
+  está al día.
+- **Conexión de test aparte del singleton**: `client.ts` tira si no encuentra
+  `DATABASE_URL` y eso está bien para producción. Tocarlo para soportar test
+  sería filtrar concerns. Un módulo `@infra/testing/db` propio es más claro y
+  no se importa nunca desde producción.
+- **`.env.test` separado de `.env`**: si `DATABASE_URL_TEST` viviera junto a la
+  de dev, un olvido (test runner leyendo `DATABASE_URL` en vez de
+  `DATABASE_URL_TEST`) apuntaría tranquilamente a la DB de dev. Con archivos
+  separados, el riesgo desaparece: hay un solo `DATABASE_URL` activo por
+  proceso.
+
+**Qué descartamos**:
+
+- **Testcontainers** (Postgres efímero por suite): traería una dependencia
+  pesada y arranque lento, para resolver un problema que ya está resuelto con
+  el docker-compose que se usa para dev. Si en el futuro hay necesidad de
+  paralelismo agresivo o tests "hermetic" en CI, se reevalúa.
+- **Script de init en `/docker-entrypoint-initdb.d/`** para crear
+  `taller_test`: solo corre la primera vez que se inicializa el volumen. Como
+  el volumen ya existe en máquinas en uso, hacía falta de todos modos un paso
+  manual. Un script `pnpm` idempotente cubre los dos casos (máquina nueva y
+  máquina existente) con un solo mecanismo.
+- **Rollback transaccional por test** (envolver cada test en una transacción
+  y abortarla): es más rápido en suites grandes, pero acopla el código de
+  test al lifecycle de transacciones, complica el uso de repos que ya
+  manejan su propia transacción, y choca con código que ejerza
+  `COMMIT`/`ROLLBACK`. El truncate es trivial de leer y "obviamente correcto"
+  — mejor para una suite chica y un proyecto cuyo objetivo es aprender.
+- **`NODE_OPTIONS='--env-file=...' vitest`**: Node rechaza `--env-file` dentro
+  de `NODE_OPTIONS` por seguridad. No viable.
+- **`envDir` + `loadEnv` de Vite**: no llega al `globalSetup` (corre en el
+  proceso principal de Vitest, no en workers), y `vite` no es resolvible
+  directo desde el paquete (está anidado bajo `vitest`). El parser inline en
+  `vitest.config.ts` cumple sin agregar deps.
+
+**Nota menor**: se sumó un bloque mínimo en `eslint.config.mjs` para que los
+archivos `**/*.mjs` (el script `create-test-db.mjs`) tengan `process`,
+`console` y `URL` como globals readonly. Plomería de lint, no decisión de
+fondo.
 
 ---
 

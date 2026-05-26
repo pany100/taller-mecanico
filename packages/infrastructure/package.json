@@ -9,10 +9,13 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
     "typecheck": "tsc --noEmit",
     "db:generate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs generate",
-    "db:migrate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs migrate"
+    "db:migrate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs migrate",
+    "db:test:create": "node --env-file=../../.env.test scripts/create-test-db.mjs",
+    "db:migrate:test": "node --env-file=../../.env.test node_modules/drizzle-kit/bin.cjs migrate"
   },
   "dependencies": {
     "@taller/application": "workspace:*",

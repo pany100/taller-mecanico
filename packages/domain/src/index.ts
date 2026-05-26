@@ -8,3 +8,8 @@ export { Usuario } from '@domain/entities/usuario/usuario';
 export { EntidadCorrupta } from '@domain/shared/exceptions/entidad-corrupta';
 
 export type { EmailInvalido } from '@domain/shared/value-objects/email/email.errors';
+export type {
+  PersonaError,
+  NombreVacio,
+  NombreMuyLargo,
+} from '@domain/entities/persona/persona.errors';

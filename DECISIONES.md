@@ -72,6 +72,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-25** · [Modelado de tablas de Etapa 0 (persona, usuario, sesion)](#2026-05-25--modelado-de-tablas-de-etapa-0-persona-usuario-sesion)
 - **2026-05-25** · [Testing de integración contra Postgres real](#2026-05-25--testing-de-integración-contra-postgres-real)
 - **2026-05-26** · [Adapters de efectos en infrastructure (Clock, IdGenerator, TokenGenerator, TokenHasher, Hasher)](#2026-05-26--adapters-de-efectos-en-infrastructure-clock-idgenerator-tokengenerator-tokenhasher-hasher)
+- **2026-05-26** · [Bootstrap del primer super-admin (caso de uso + script cáscara)](#2026-05-26--bootstrap-del-primer-super-admin-caso-de-uso--script-cáscara)
 
 ---
 
@@ -2290,6 +2291,131 @@ TS; no hace falta `@types/*`.
   nada; base64url es la elección estándar.
 - **Encoding base64 para el SHA-256**: hex es más legible en logs/queries y
   el storage extra (20 chars) es insignificante.
+
+---
+
+## 2026-05-26 · Bootstrap del primer super-admin (caso de uso + script cáscara)
+
+Implementa el punto 3 del roadmap (creación del primer super-admin, deferida
+de la decisión de Fase de Diseño "Casos de uso de la Etapa 0", subpunto
+"Primer super-admin via UI: se crea por script de bootstrap").
+
+**Qué decidimos**:
+
+- **Caso de uso `crearSuperAdmin`** en `application/src/auth/use-cases/`:
+  función `(deps, input)` que devuelve `Result<CrearSuperAdminOk,
+CrearSuperAdminError>`. Recibe `{ email, nombre, password }` en claro; valida
+  el email (`Email.crear`), valida el nombre vía `Persona.crear`, chequea que
+  el email no exista (`UsuarioRepository.findByEmail`), hashea el password
+  (`Hasher.hash`), arma el `Usuario` con rol `administrador` y persiste vía
+  `UsuarioRepository.save`. Devuelve `{ usuarioId, email }`.
+- **Errores de negocio** en `application/src/auth/errors/crear-super-admin.errors.ts`:
+  union `EmailInvalido | PersonaError | EmailYaRegistrado`. `EmailYaRegistrado`
+  es nuevo y específico de este caso (no se promueve a transversal hasta que
+  un segundo caso lo necesite). Email malformado y nombre inválido se propagan
+  tal cual desde domain. Cualquier falla "imposible" (PasswordHash vacío,
+  `Usuario.crear` rechazando una persona no-null) se lanza como
+  `EntidadCorrupta`: son corrupción técnica, no finales de negocio (regla de
+  errores por capas).
+- **Hasher.hash** sumado al puerto y al adapter bcrypt (demand-driven): el
+  caso de uso lo necesita para hashear el password generado. Usa la constante
+  `BCRYPT_COST_ROUNDS = 12` ya existente, nunca un literal nuevo. Test
+  unitario: el hash generado lo valida `verify` con el mismo password y
+  rechaza otro.
+- **UsuarioRepository.save** sumado al puerto y al adapter Drizzle
+  (demand-driven): el bootstrap necesita persistir un usuario. Insertar
+  persona + usuario en **una transacción** (`db.transaction(async tx =>
+  {...})`) para respetar la FK `usuario.persona_id` (persona primero) y
+  garantizar atomicidad: si el insert de usuario falla (ej. email duplicado),
+  el insert de persona se hace rollback automáticamente. Test de integración:
+  inserta y recupera vía `findByEmail`, y verifica que un fallo de email
+  duplicado en el segundo insert deja persona sin tocar.
+- **Script `bootstrap-super-admin.ts`** en `packages/infrastructure/scripts/`
+  (junto a `create-test-db.mjs`). Cáscara fina:
+  - Recibe `--email=...` y `--nombre="..."` como CLI args.
+  - Genera el password con `crypto.randomBytes(18).toString('base64url')` (24
+    caracteres, ~108 bits de entropía; copiable, sin caracteres problemáticos
+    en URLs/cookies/terminal). El password se imprime UNA sola vez a stdout
+    con leyenda explícita "no se vuelve a mostrar".
+  - Cablea adapters reales: `db` (DrizzleDb singleton de `client.ts`),
+    `crearUsuarioRepository(db)`, `hasher`, `idGenerator`, `clock`.
+  - Llama a `crearSuperAdmin`; en error imprime mensaje claro y `exit 1`; en
+    éxito imprime `id`, `email` y el password generado, `exit 0`.
+  - Carga `.env` con `--env-file=../../.env` (mismo mecanismo que los otros
+    scripts del paquete).
+- **Comando**: `pnpm --filter @taller/infrastructure bootstrap:super-admin --
+  --email=<email> --nombre="<nombre>"`.
+- **Runtime del script**: `tsx` (sumado como `devDependency` de
+  infrastructure). Razón: el script tiene que importar `@taller/application`
+  y módulos internos de infra con aliases `@app/*`, `@infra/*`, `@domain/*`;
+  el strip-types nativo de Node 22 no resuelve aliases de tsconfig. `tsx` ya
+  vivía en el lockfile como dependencia transitiva (drizzle-kit lo usa
+  internamente); promoverlo a dep directa de infra es la fricción mínima.
+  Cumple el mismo rol que `node --env-file` cumple para los `.mjs`: hace el
+  archivo ejecutable.
+- **Idioma del comando**: el rol `bootstrap` es plomería operativa (no
+  negocio del taller), por eso va en inglés. `super-admin` es un concepto del
+  sistema de roles, que en castellano informal y técnico ya se usa así
+  ("super-admin"); no se traduce a "super-administrador" porque pierde
+  legibilidad sin ganar fidelidad al lenguaje del taller (un mecánico no usa
+  ninguno de los dos términos: es vocabulario del sistema, no del dominio).
+
+**Por qué**:
+
+- **Caso de uso + script cáscara (arquitectura A)**: la creación del primer
+  admin tiene reglas de dominio (rol obligatorio, password hasheado, email
+  único). Esas reglas no pueden vivir en un script, porque mañana el flow de
+  invitación va a necesitar exactamente las mismas. El script es solo otra
+  superficie de entrada — equivalente a un Server Action — que cablea deps y
+  delega. Misma forma que la decisión "Server Actions como capa fina".
+- **Password generado, no recibido**: si el bootstrap pidiera el password
+  como arg, queda en el historial de la terminal y en cualquier log de
+  ejecución. Generarlo en el proceso e imprimirlo una sola vez deja el riesgo
+  solo en stdout (que el operador puede limpiar y no se persiste).
+- **base64url + 18 bytes**: 18 bytes = 144 bits de aleatoriedad → 24
+  caracteres base64url sin padding. Por encima del estándar de "alta entropía
+  para uso humano" y bien por debajo de algo molesto para copiar/pegar. URL/
+  cookie/terminal-safe (sin `+`, `/`, `=`, espacios).
+- **Errores de negocio explícitos en lugar de excepciones**: aplica la regla
+  por capas (dominio/application devuelven Result; corrupción es excepción).
+  `EmailYaRegistrado` es esperable (el operador puede ejecutar el script dos
+  veces); `PasswordHash` vacío es bug de infra. La regla mecánica decide.
+- **Transacción para save**: la FK `usuario.persona_id` → `persona.id`
+  obliga al orden persona-primero, y un fallo del segundo insert sin
+  transacción dejaría una persona huérfana sin usuario asociado. Drizzle
+  expone `db.transaction(async tx => {...})` con el mismo tipo que `db`
+  adentro (`tx.insert(...)` igual que `db.insert(...)`), así que no hay
+  decisión arquitectónica nueva.
+- **`Hasher.hash` y `UsuarioRepository.save` ahora, no antes**: ambos son
+  demand-driven (regla establecida en la decisión "Estructura y forma de la
+  capa de aplicación"). El primer consumidor real recién aparece con este
+  caso de uso; sumarlos antes hubiera sido especulación.
+
+**Qué descartamos**:
+
+- **Toda la lógica del bootstrap directo en el script (arquitectura B)**:
+  habría que reescribirla cuando `aceptarInvitacion` se implemente. El caso
+  de uso ya estructura la creación de un Usuario; reutilizarlo es la opción
+  natural.
+- **Password como CLI arg (`--password=...`)**: queda en el history del
+  shell y en logs/auditoría del proceso. Riesgo evitable.
+- **Password leída interactivamente** (prompt): suma código de TTY y la
+  experiencia "copiá esta password generada" es mejor que "elegí una y
+  copiala": el script garantiza calidad criptográfica.
+- **Persistir sin transacción** (dos inserts secuenciales): un fallo en el
+  segundo deja persona huérfana. Atomicidad acá es gratis con Drizzle.
+- **`EmailYaRegistrado` en un archivo de errores transversal**: lo usa solo
+  este caso por ahora; promover sin un segundo consumidor viola la regla.
+- **Generar el password con `Math.random` o `crypto.randomUUID`**: el
+  primero no es criptográficamente seguro; el segundo da un formato fijo
+  largo y menos copiable que base64url corto.
+- **Carpeta nueva `bootstrap/` en lugar de `scripts/`**: hoy hay un solo
+  script de bootstrap; sumarlo a `scripts/` mantiene la estructura plana.
+  Cuando aparezca un tercer script de bootstrap se reevalúa.
+- **`tsx` como dep directa global del monorepo** o **escribir el script en
+  `.mjs` con compilación previa**: la primera ensucia la raíz con una
+  herramienta que solo usa infra; la segunda agrega un paso de build a un
+  paquete que no tiene ninguno. Dep directa de infra es la opción mínima.
 
 ---
 

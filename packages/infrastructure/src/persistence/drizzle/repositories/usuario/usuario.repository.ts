@@ -71,4 +71,25 @@ export const crearUsuarioRepository = (db: DrizzleDb): UsuarioRepository => ({
 
     return reconstruirUsuario(fila.usuario, fila.persona);
   },
+
+  async save(usuario: Usuario): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.insert(personaTable).values({
+        id: usuario.persona.id,
+        nombre: usuario.persona.nombre,
+        creadoEn: usuario.persona.creadoEn,
+        actualizadoEn: usuario.persona.actualizadoEn,
+      });
+
+      await tx.insert(usuarioTable).values({
+        id: usuario.id,
+        personaId: usuario.persona.id,
+        email: usuario.email.valor,
+        passwordHash: usuario.passwordHash.valor,
+        rol: usuario.rol,
+        creadoEn: usuario.creadoEn,
+        actualizadoEn: usuario.actualizadoEn,
+      });
+    });
+  },
 });

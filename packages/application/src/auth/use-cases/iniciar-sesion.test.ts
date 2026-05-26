@@ -61,9 +61,11 @@ const usuarioValido = (): Usuario => {
 
 const repoCon = (usuario: Usuario | null): UsuarioRepository => ({
   findByEmail: async () => usuario,
+  save: async () => {},
 });
 
 const hasherQue = (coincide: boolean): Hasher => ({
+  hash: async (password) => `hash-de-${password}`,
   verify: async () => coincide,
 });
 

@@ -16,4 +16,12 @@ describe('hasher', () => {
       false,
     );
   });
+
+  it('hash genera un hash que verify acepta con el mismo password', async () => {
+    const generado = await hasher.hash(password);
+
+    expect(generado).not.toBe(password);
+    await expect(hasher.verify(password, generado)).resolves.toBe(true);
+    await expect(hasher.verify('otra-password', generado)).resolves.toBe(false);
+  });
 });

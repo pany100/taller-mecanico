@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Sesion } from '@/auth/entities/sesion';
+import { Sesion } from '@app/auth/entities/sesion';
 
 describe('Sesion · crear', () => {
   const ID_FIJO = '11111111-1111-1111-1111-111111111111';

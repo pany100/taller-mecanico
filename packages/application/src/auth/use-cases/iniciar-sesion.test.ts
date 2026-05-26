@@ -8,15 +8,15 @@ import {
   type Result,
 } from '@taller/domain';
 
-import { Sesion } from '@/auth/entities/sesion';
-import { type Hasher } from '@/auth/ports/hasher';
-import { type SesionRepository } from '@/auth/ports/sesion-repository';
-import { type TokenGenerator } from '@/auth/ports/token-generator';
-import { type TokenHasher } from '@/auth/ports/token-hasher';
-import { type UsuarioRepository } from '@/auth/ports/usuario-repository';
-import { type Clock } from '@/shared/ports/clock';
-import { type IdGenerator } from '@/shared/ports/id-generator';
-import { iniciarSesion } from '@/auth/use-cases/iniciar-sesion';
+import { Sesion } from '@app/auth/entities/sesion';
+import { type Hasher } from '@app/auth/ports/hasher';
+import { type SesionRepository } from '@app/auth/ports/sesion-repository';
+import { type TokenGenerator } from '@app/auth/ports/token-generator';
+import { type TokenHasher } from '@app/auth/ports/token-hasher';
+import { type UsuarioRepository } from '@app/auth/ports/usuario-repository';
+import { type Clock } from '@app/shared/ports/clock';
+import { type IdGenerator } from '@app/shared/ports/id-generator';
+import { iniciarSesion } from '@app/auth/use-cases/iniciar-sesion';
 
 const desempaquetar = <T, E>(resultado: Result<T, E>): T => {
   if (!resultado.ok) {

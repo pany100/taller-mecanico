@@ -1,5 +1,5 @@
-import { type EmailError } from './email.errors';
-import { err, ok, type Result } from '../../result/result';
+import { type EmailError } from '@domain/shared/value-objects/email/email.errors';
+import { err, ok, type Result } from '@domain/shared/result/result';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

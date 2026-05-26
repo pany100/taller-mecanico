@@ -1,9 +1,9 @@
-import { Persona } from '../persona/persona';
-import { Email } from '../../shared/value-objects/email/email';
-import { PasswordHash } from '../../shared/value-objects/password-hash/password-hash';
-import { Rol } from './rol';
-import { type UsuarioError } from './usuario.errors';
-import { err, ok, type Result } from '../../shared/result/result';
+import { Persona } from '@domain/entities/persona/persona';
+import { Email } from '@domain/shared/value-objects/email/email';
+import { PasswordHash } from '@domain/shared/value-objects/password-hash/password-hash';
+import { Rol } from '@domain/entities/usuario/rol';
+import { type UsuarioError } from '@domain/entities/usuario/usuario.errors';
+import { err, ok, type Result } from '@domain/shared/result/result';
 
 export class Usuario {
   readonly id: string;

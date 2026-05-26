@@ -1,5 +1,5 @@
-import { type PasswordHashError } from './password-hash.errors';
-import { err, ok, type Result } from '../../result/result';
+import { type PasswordHashError } from '@domain/shared/value-objects/password-hash/password-hash.errors';
+import { err, ok, type Result } from '@domain/shared/result/result';
 
 export class PasswordHash {
   readonly valor: string;

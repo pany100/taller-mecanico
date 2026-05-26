@@ -7,7 +7,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@app': fileURLToPath(new URL('./src', import.meta.url)),
+      '@domain': fileURLToPath(new URL('../domain/src', import.meta.url)),
     },
   },
 });

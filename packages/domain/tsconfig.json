@@ -3,6 +3,9 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
+    "paths": {
+      "@domain/*": ["./src/*"]
+    },
     "types": ["vitest/globals"]
   },
   "include": ["src/**/*.ts"]

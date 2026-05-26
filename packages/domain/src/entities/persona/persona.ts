@@ -1,5 +1,5 @@
-import { type PersonaError } from './persona.errors';
-import { err, ok, type Result } from '../../shared/result/result';
+import { type PersonaError } from '@domain/entities/persona/persona.errors';
+import { err, ok, type Result } from '@domain/shared/result/result';
 
 const NOMBRE_LARGO_MAXIMO = 150;
 

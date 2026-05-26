@@ -68,6 +68,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Excepción: imports relativos permitidos en barrels de paquete](#2026-05-22--excepción-imports-relativos-permitidos-en-barrels-de-paquete)
 - **2026-05-22** · [Modelo de errores por capas: no throw para esperables](#2026-05-22--modelo-de-errores-por-capas-no-throw-para-esperables)
 - **2026-05-22** · [Domain usa imports relativos en todo su código (provisorio)](#2026-05-22--domain-usa-imports-relativos-en-todo-su-código-provisorio)
+- **2026-05-25** · [Alias único por paquete (X3): resolución cross-paquete en typecheck y Vitest](#2026-05-25--alias-único-por-paquete-x3-resolución-cross-paquete-en-typecheck-y-vitest)
 
 ---
 
@@ -1846,6 +1847,10 @@ finales de dominio.
 
 ## 2026-05-22 · Domain usa imports relativos en todo su código (provisorio)
 
+> **Reemplazada el 2026-05-25** por [Alias único por paquete (X3)](#2026-05-25--alias-único-por-paquete-x3-resolución-cross-paquete-en-typecheck-y-vitest).
+> Domain volvió a usar alias (`@domain/*`), aplicando la regla "cero
+> relativos" sin excepciones. La entrada se conserva como contexto histórico.
+
 Amplía y supera la entrada "Excepción: imports relativos permitidos en barrels
 de paquete" del mismo día. La excepción no era suficiente: el problema del
 alias `@/*` colisionando se extiende a **todos** los archivos de domain que se
@@ -1901,6 +1906,96 @@ leen transitivamente desde otro paquete, no solo al barrel.
 **Pendiente**: cuando el monorepo crezca o el roce de leer relativos en
 domain moleste, evaluar project references + `vite-tsconfig-paths` (o
 equivalente) como solución de fondo y volver domain a `@/*`.
+
+---
+
+## 2026-05-25 · Alias único por paquete (X3): resolución cross-paquete en typecheck y Vitest
+
+Reemplaza la decisión [Domain usa imports relativos en todo su código
+(provisorio)](#2026-05-22--domain-usa-imports-relativos-en-todo-su-código-provisorio)
+(la "solución X1"). Resuelve de fondo la colisión de `@/*` entre paquetes
+que la motivaba.
+
+**Estado de project references**: a 2026-05-25 el repo NO tiene project
+references configuradas (se descartaron antes de X3, decisión registrada
+en Fase 0). El typecheck corre `tsc --noEmit` por paquete. Las project
+references quedan como mejora futura de tiempos de build incremental — no
+son necesarias para resolución de tipos, que X3 ya cubre en `tsc` y
+Vitest.
+
+**Qué decidimos**:
+
+- Cada paquete usa un **prefijo de alias único**, apuntando a su `src/*`:
+  - `domain` → `@domain/*`
+  - `application` → `@app/*`
+  - `infrastructure` → `@infra/*`
+  - `apps/web` → mantiene `@/*` (convención Next; no hay colisión real
+    porque web no se consume desde nadie).
+- Cada alias se declara **simétricamente** en el `tsconfig.json`
+  (`compilerOptions.paths`) y en el `vitest.config.ts` (`resolve.alias`)
+  del paquete que lo posee.
+- Cada paquete consumidor declara **además** los alias cross-paquete de lo
+  que consume directa o transitivamente, en sus dos configs. Hoy:
+  - `application`: `@app/*` propio + `@domain/*` cross-paquete.
+  - `infrastructure`: `@infra/*` propio + `@domain/*` + `@app/*`
+    cross-paquete (pre-cableados aunque infra todavía no importe nada de
+    ellos, para que el primer repositorio real no requiera tocar config).
+  - `domain`: solo `@domain/*` (no consume a nadie).
+- Domain vuelve a aplicar la regla "cero imports relativos" sin
+  excepciones. El barrel y todos los archivos internos usan `@domain/...`.
+- Convención de mantenimiento: si un paquete empieza a consumir uno nuevo,
+  agregar el alias correspondiente en su `tsconfig.json` y
+  `vitest.config.ts`.
+
+**Por qué**:
+
+- La colisión del `@/*` compartido (documentada en X1) aparecía porque
+  cuando `application` (consumidor) leía archivos de `domain` (consumido),
+  TypeScript y Vitest resolvían los `paths` del archivo leído contra la
+  config del **consumidor**, no del consumido. Los dos definían `@/*`
+  apuntando a su propio `src/`, así que `@/shared/result/result` dentro de
+  domain se resolvía contra `application/src/...` y no existía.
+- Con prefijos únicos por paquete no hay colisión: el consumidor declara
+  tantos alias distintos como necesite y cada uno apunta al `src/` real
+  del paquete correspondiente.
+- La solución arregla los **dos frentes** que importan en este monorepo:
+  - **`tsc --noEmit`** del consumidor, que typechequea archivos del
+    consumido al seguir el grafo de imports.
+  - **Vitest** del consumidor, que carga archivos del consumido desde su
+    `src/` (porque el `main`/`exports` del consumido apunta a `./src/...`,
+    no a `dist/`).
+- Un experimento reciente (cambio aparentemente menor en `Email.crear`)
+  confirmó que sin la fix, `vitest` rompía con `Cannot find package
+  '@/...'` cuando ejecutaba tests de `application` que cargaban
+  transitivamente código de `domain` con aliases `@/`. Después de migrar
+  a alias únicos, el mismo escenario corre verde sin tocar más config.
+- Complementa, pero **no requiere**, project references. Project
+  references (D3) optimizan `tsc -b` (builds incrementales por paquete)
+  pero no afectan cómo Vitest resuelve módulos, así que por sí solas no
+  cierran el problema. Como con X3 Vitest y `tsc --noEmit` ya funcionan,
+  project references queda pendiente como mejora de tiempos de build.
+
+**Qué descartamos**:
+
+- **Dejar X1 como permanente** (domain con relativos): rompía la regla
+  "cero relativos" en un paquete sí y en otros no, generando un set de
+  reglas distinto por rol del paquete. Más pesado de explicar y de
+  recordar que un prefijo único.
+- **Solo project references**: arregla `tsc -b` pero Vitest sigue
+  resolviendo paths con la config del consumidor al leer source. Sin
+  tocar también Vitest, el problema persiste. (Y agregar
+  `vite-tsconfig-paths` para que Vitest entienda project references era
+  precisamente la dep que se había rechazado en la decisión original del
+  alias.)
+- **Consumir `dist/` en Vitest** (que el `main` de cada paquete apunte a
+  `dist/` y el consumidor cargue compilado): elimina la cuestión del
+  alias del consumido porque el `.js` final no tiene `paths`, pero rompe
+  el dev loop (cada cambio en un paquete consumido obliga a buildear
+  antes de que el test del consumidor lo vea). Costoso y propenso a
+  desincronización.
+- **Mantener `@/*` y forzar al consumidor a redefinirlo apuntando al
+  consumido**: imposible — el consumidor también tiene su propio `@/*`
+  intra-paquete, los dos chocan en la misma clave.
 
 ---
 

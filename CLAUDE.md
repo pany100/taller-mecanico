@@ -58,23 +58,20 @@ plantearlo en vez de ignorarla.
   entidad, no solo en validaciones de formulario.
 - **Imports cross-paquete** usan el scope `@taller/*` (ej.
   `import { iniciarSesion } from '@taller/application'`).
-- **Imports intra-paquete** dependen del rol del paquete:
-  - **Paquetes "hoja" (no se consumen como librería)**: `application` y
-    `apps/web` usan el alias `@/*` que apunta a `src/*` del paquete actual
-    (configurado en cada `tsconfig.json` y en cada `vitest.config.ts`).
-    **Cero imports relativos**: ningún import arranca con `./` ni `../`,
-    incluso vecinos del mismo directorio. Si un import empieza con `.`,
-    está mal.
-  - **Paquetes consumidos como librería**: hoy `domain` usa imports
-    **relativos** (`./...`, `../...`) en todo su código (entidades, value
-    objects, errors, tests, barrel). El alias `@/*` no se usa en domain.
-    Motivo técnico: cuando otro paquete consume archivos de domain, TS y
-    vitest resuelven los `paths` del archivo leído con la config del paquete
-    consumidor, no del consumido — los dos definen `@/*` y colisiona. Un
-    relativo no depende de `paths` y resuelve igual lo lea quien lo lea.
-    **Estado provisorio**: la solución de fondo (project references +
-    plugin de paths para vitest) está pendiente; cuando se haga, domain
-    vuelve a `@/*`.
+- **Imports intra-paquete** usan un **alias único por paquete**, sin
+  excepciones: `@domain/*` en domain, `@app/*` en application, `@infra/*`
+  en infrastructure, `@/*` en `apps/web` (por convención Next). Cada alias
+  apunta a `src/*` del paquete que lo declara.
+  - **Cero imports relativos** en todo el código, en todos los paquetes:
+    ningún import arranca con `./` ni `../`, incluso vecinos del mismo
+    directorio. Si un import empieza con `.`, está mal.
+  - El prefijo único por paquete evita la colisión que tendría un `@/*`
+    compartido cuando un consumidor lee archivos del consumido: con
+    prefijos distintos, cada consumidor declara en su tsconfig y vitest los
+    alias propios + uno por cada paquete que consuma directa o
+    transitivamente, sin pisarse. Mantenimiento: si un paquete empieza a
+    consumir otro nuevo, sumar el alias en sus dos configs (`paths` en
+    tsconfig y `resolve.alias` en vitest), simétricamente.
 - Los límites entre capas los hace cumplir ESLint (plugin de
   boundaries). Si un import viola la hexagonal, el lint falla: no
   silenciar la regla, corregir el import.

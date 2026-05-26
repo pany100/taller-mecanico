@@ -4,7 +4,8 @@
     "rootDir": "src",
     "outDir": "dist",
     "paths": {
-      "@/*": ["./src/*"]
+      "@app/*": ["./src/*"],
+      "@domain/*": ["../domain/src/*"]
     },
     "types": ["vitest/globals"]
   },

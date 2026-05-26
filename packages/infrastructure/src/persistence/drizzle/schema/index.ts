@@ -1,1 +1,1 @@
-export * from '@/persistence/drizzle/schema/persona';
+export * from '@infra/persistence/drizzle/schema/persona';

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { Email, EntidadCorrupta } from '@taller/domain';
 
-import { crearUsuarioRepository } from '@infra/persistence/drizzle/repositories/usuario.repository';
+import { crearUsuarioRepository } from '@infra/persistence/drizzle/repositories/usuario/usuario.repository';
 import { persona as personaTable } from '@infra/persistence/drizzle/schema/persona';
 import { usuario as usuarioTable } from '@infra/persistence/drizzle/schema/usuario';
 import { db, truncateAll } from '@infra/testing/db';

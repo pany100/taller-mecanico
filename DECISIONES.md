@@ -69,6 +69,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-22** · [Modelo de errores por capas: no throw para esperables](#2026-05-22--modelo-de-errores-por-capas-no-throw-para-esperables)
 - **2026-05-22** · [Domain usa imports relativos en todo su código (provisorio)](#2026-05-22--domain-usa-imports-relativos-en-todo-su-código-provisorio)
 - **2026-05-25** · [Alias único por paquete (X3): resolución cross-paquete en typecheck y Vitest](#2026-05-25--alias-único-por-paquete-x3-resolución-cross-paquete-en-typecheck-y-vitest)
+- **2026-05-25** · [Modelado de tablas de Etapa 0 (persona, usuario, sesion)](#2026-05-25--modelado-de-tablas-de-etapa-0-persona-usuario-sesion)
 
 ---
 
@@ -1996,6 +1997,62 @@ Vitest.
 - **Mantener `@/*` y forzar al consumidor a redefinirlo apuntando al
   consumido**: imposible — el consumidor también tiene su propio `@/*`
   intra-paquete, los dos chocan en la misma clave.
+
+---
+
+## 2026-05-25 · Modelado de tablas de Etapa 0 (persona, usuario, sesion)
+
+**Qué decidimos**:
+
+Schema de las tres tablas de auth, con estas decisiones de modelado:
+
+- **Persona y Usuario son tablas separadas** (espejando las entidades de
+  dominio). `usuario` tiene FK `persona_id` → `persona.id`, con
+  `NOT NULL UNIQUE` y `ON DELETE RESTRICT`.
+  - `NOT NULL`: traduce la invariante "no puede existir Usuario sin Persona".
+  - `UNIQUE`: una Persona tiene a lo sumo un Usuario (cardinalidad 1:0..1 —
+    Persona puede existir sin Usuario, pero no al revés). En Etapa 0 toda
+    Persona creada tiene Usuario, pero el modelo no es 1:1 estricto.
+  - `ON DELETE RESTRICT`: no se puede borrar una Persona con Usuario asociado
+    sin resolverlo antes. Un Usuario es una credencial; no se pierde en
+    silencio. Coherente con la filosofía de soft-delete de entidades sensibles.
+
+- **Sesion → Usuario es `ON DELETE CASCADE`** (tanto `usuario_id` como
+  `usuario_real_id`). Criterio distinto al de Persona↔Usuario a propósito: una
+  sesión sin su usuario es estado efímero sin valor (un token apuntando a un
+  usuario inexistente es basura), a diferencia de una credencial. Borrar el
+  usuario se lleva sus sesiones, que es lo correcto.
+
+- **Email case-insensitive se resuelve en `Email.crear`, no en la DB.** El VO
+  ya normaliza (`trim().toLowerCase()`) en su factory, así que en la DB el
+  email siempre está en minúscula y un índice único normal sobre `email` da
+  unicidad case-insensitive de facto. No se usa `citext` ni `LOWER()` en DB.
+
+Otros detalles del schema: `id` es `uuid` PK sin default de DB (lo provee la
+app vía IdGenerator, UUID v7); timestamps `with time zone`; `rol` es enum de
+Postgres (`rol_usuario`) espejando los valores del tipo `Rol` del dominio;
+índices únicos en `usuario.email` y `sesion.token_hash`.
+
+**Por qué**:
+
+- Tablas separadas: el dominio ya modeló Persona y Usuario como entidades
+  distintas (decisión de fase de diseño), y el roadmap (Etapa 1: Cliente +
+  Colaborador, que también referencian a Persona) confirma que Persona va a ser
+  referenciada por más cosas. Tabla propia no es especulación.
+- CASCADE vs RESTRICT según naturaleza del dato: credencial (no perder) vs
+  sesión efímera (descartable). El criterio no es uniforme a propósito.
+- Email CI en el dominio: evita redundancia (no resolver dos veces lo mismo) y
+  no suma la extensión citext; es más fiel a que el dominio define el email
+  canónico.
+
+**Qué descartamos**:
+
+- Tabla única `usuario` con campos de persona adentro (Etapa 0 más simple):
+  contradice el modelo de entidades separadas y obligaría a extraer Persona en
+  Etapa 1.
+- `RESTRICT` en sesion→usuario por uniformidad: CASCADE es más natural para
+  estado efímero; la uniformidad no aporta acá.
+- `citext`/`LOWER()` en DB para email CI: redundante con la normalización del VO.
 
 ---
 

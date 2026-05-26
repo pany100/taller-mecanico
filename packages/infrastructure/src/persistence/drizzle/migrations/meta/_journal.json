@@ -8,6 +8,13 @@
       "when": 1779368588352,
       "tag": "0000_tan_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779760287662,
+      "tag": "0001_parched_zodiak",
+      "breakpoints": true
     }
   ]
 }

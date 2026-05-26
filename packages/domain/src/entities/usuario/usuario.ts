@@ -3,6 +3,7 @@ import { Email } from '@domain/shared/value-objects/email/email';
 import { PasswordHash } from '@domain/shared/value-objects/password-hash/password-hash';
 import { Rol } from '@domain/entities/usuario/rol';
 import { type UsuarioError } from '@domain/entities/usuario/usuario.errors';
+import { EntidadCorrupta } from '@domain/shared/exceptions/entidad-corrupta';
 import { err, ok, type Result } from '@domain/shared/result/result';
 
 export class Usuario {
@@ -54,6 +55,30 @@ export class Usuario {
         input.creadoEn,
         input.creadoEn,
       ),
+    );
+  }
+
+  static reconstituir(input: {
+    id: string;
+    persona: Persona;
+    email: Email;
+    passwordHash: PasswordHash;
+    rol: Rol;
+    creadoEn: Date;
+    actualizadoEn: Date;
+  }): Usuario {
+    if (input.persona === null || input.persona === undefined) {
+      throw new EntidadCorrupta('Usuario', 'sin persona asociada');
+    }
+
+    return new Usuario(
+      input.id,
+      input.persona,
+      input.email,
+      input.passwordHash,
+      input.rol,
+      input.creadoEn,
+      input.actualizadoEn,
     );
   }
 }

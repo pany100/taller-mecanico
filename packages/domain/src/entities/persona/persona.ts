@@ -1,4 +1,5 @@
 import { type PersonaError } from '@domain/entities/persona/persona.errors';
+import { EntidadCorrupta } from '@domain/shared/exceptions/entidad-corrupta';
 import { err, ok, type Result } from '@domain/shared/result/result';
 
 const NOMBRE_LARGO_MAXIMO = 150;
@@ -42,6 +43,31 @@ export class Persona {
 
     return ok(
       new Persona(input.id, nombreTrimmeado, input.creadoEn, input.creadoEn),
+    );
+  }
+
+  static reconstituir(input: {
+    id: string;
+    nombre: string;
+    creadoEn: Date;
+    actualizadoEn: Date;
+  }): Persona {
+    if (input.nombre.length === 0) {
+      throw new EntidadCorrupta('Persona', 'nombre vacío');
+    }
+
+    if (input.nombre.length > NOMBRE_LARGO_MAXIMO) {
+      throw new EntidadCorrupta(
+        'Persona',
+        `nombre excede el máximo (${input.nombre.length} > ${NOMBRE_LARGO_MAXIMO})`,
+      );
+    }
+
+    return new Persona(
+      input.id,
+      input.nombre,
+      input.creadoEn,
+      input.actualizadoEn,
     );
   }
 }

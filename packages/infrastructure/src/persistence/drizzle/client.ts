@@ -12,3 +12,5 @@ if (!connectionString) {
 const pool = new Pool({ connectionString });
 
 export const db = drizzle(pool, { schema });
+
+export type DrizzleDb = typeof db;

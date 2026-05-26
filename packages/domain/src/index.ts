@@ -5,5 +5,6 @@ export { Email } from '@domain/shared/value-objects/email/email';
 export { PasswordHash } from '@domain/shared/value-objects/password-hash/password-hash';
 export { Persona } from '@domain/entities/persona/persona';
 export { Usuario } from '@domain/entities/usuario/usuario';
+export { EntidadCorrupta } from '@domain/shared/exceptions/entidad-corrupta';
 
 export type { EmailInvalido } from '@domain/shared/value-objects/email/email.errors';

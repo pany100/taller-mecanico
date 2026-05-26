@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Persona } from '@domain/entities/persona/persona';
+import { EntidadCorrupta } from '@domain/shared/exceptions/entidad-corrupta';
 
 describe('Persona · crear', () => {
   const ID_FIJO = '11111111-1111-1111-1111-111111111111';
@@ -133,5 +134,47 @@ describe('Persona · crear', () => {
       expect(resultado.error.maximo).toBe(150);
       expect(resultado.error.largoRecibido).toBe(151);
     }
+  });
+});
+
+describe('Persona · reconstituir', () => {
+  const ID_FIJO = '11111111-1111-1111-1111-111111111111';
+  const CREADO_EN = new Date('2026-05-21T12:00:00.000Z');
+  const ACTUALIZADO_EN = new Date('2026-05-23T09:30:00.000Z');
+
+  it('reconstruye una Persona respetando actualizadoEn distinto de creadoEn', () => {
+    const persona = Persona.reconstituir({
+      id: ID_FIJO,
+      nombre: 'Juana Pérez',
+      creadoEn: CREADO_EN,
+      actualizadoEn: ACTUALIZADO_EN,
+    });
+
+    expect(persona.id).toBe(ID_FIJO);
+    expect(persona.nombre).toBe('Juana Pérez');
+    expect(persona.creadoEn).toBe(CREADO_EN);
+    expect(persona.actualizadoEn).toBe(ACTUALIZADO_EN);
+  });
+
+  it('lanza EntidadCorrupta cuando el nombre persistido es vacío', () => {
+    expect(() =>
+      Persona.reconstituir({
+        id: ID_FIJO,
+        nombre: '',
+        creadoEn: CREADO_EN,
+        actualizadoEn: ACTUALIZADO_EN,
+      }),
+    ).toThrow(EntidadCorrupta);
+  });
+
+  it('lanza EntidadCorrupta cuando el nombre persistido excede el máximo', () => {
+    expect(() =>
+      Persona.reconstituir({
+        id: ID_FIJO,
+        nombre: 'a'.repeat(151),
+        creadoEn: CREADO_EN,
+        actualizadoEn: ACTUALIZADO_EN,
+      }),
+    ).toThrow(EntidadCorrupta);
   });
 });

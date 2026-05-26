@@ -5,6 +5,7 @@ import { Email } from '@domain/shared/value-objects/email/email';
 import { PasswordHash } from '@domain/shared/value-objects/password-hash/password-hash';
 import { Rol } from '@domain/entities/usuario/rol';
 import { Usuario } from '@domain/entities/usuario/usuario';
+import { EntidadCorrupta } from '@domain/shared/exceptions/entidad-corrupta';
 import { type Result } from '@domain/shared/result/result';
 
 const desempaquetar = <T, E>(resultado: Result<T, E>): T => {
@@ -181,5 +182,78 @@ describe('Usuario · crear', () => {
     if (resultado.ok) {
       expect(resultado.value.rol).toBe('miembro');
     }
+  });
+});
+
+describe('Usuario · reconstituir', () => {
+  const ID_USUARIO = '22222222-2222-2222-2222-222222222222';
+  const ID_PERSONA = '11111111-1111-1111-1111-111111111111';
+  const CREADO_EN = new Date('2026-05-22T12:00:00.000Z');
+  const ACTUALIZADO_EN = new Date('2026-05-24T08:15:00.000Z');
+
+  const personaValida = () =>
+    desempaquetar(
+      Persona.crear({
+        id: ID_PERSONA,
+        nombre: 'Juana Pérez',
+        creadoEn: CREADO_EN,
+      }),
+    );
+
+  const emailValido = () => desempaquetar(Email.crear('juana@taller.test'));
+  const passwordHashValido = () =>
+    desempaquetar(PasswordHash.crear('$2b$10$abcdefghijklmnopqrstuv'));
+
+  it('reconstruye un Usuario respetando actualizadoEn distinto de creadoEn', () => {
+    const persona = personaValida();
+    const email = emailValido();
+    const passwordHash = passwordHashValido();
+    const rol: Rol = 'administrador';
+
+    const usuario = Usuario.reconstituir({
+      id: ID_USUARIO,
+      persona,
+      email,
+      passwordHash,
+      rol,
+      creadoEn: CREADO_EN,
+      actualizadoEn: ACTUALIZADO_EN,
+    });
+
+    expect(usuario.id).toBe(ID_USUARIO);
+    expect(usuario.persona).toBe(persona);
+    expect(usuario.email).toBe(email);
+    expect(usuario.passwordHash).toBe(passwordHash);
+    expect(usuario.rol).toBe(rol);
+    expect(usuario.creadoEn).toBe(CREADO_EN);
+    expect(usuario.actualizadoEn).toBe(ACTUALIZADO_EN);
+  });
+
+  it('lanza EntidadCorrupta cuando la persona es null', () => {
+    expect(() =>
+      Usuario.reconstituir({
+        id: ID_USUARIO,
+        persona: null as unknown as Persona,
+        email: emailValido(),
+        passwordHash: passwordHashValido(),
+        rol: 'miembro',
+        creadoEn: CREADO_EN,
+        actualizadoEn: ACTUALIZADO_EN,
+      }),
+    ).toThrow(EntidadCorrupta);
+  });
+
+  it('lanza EntidadCorrupta cuando la persona es undefined', () => {
+    expect(() =>
+      Usuario.reconstituir({
+        id: ID_USUARIO,
+        persona: undefined as unknown as Persona,
+        email: emailValido(),
+        passwordHash: passwordHashValido(),
+        rol: 'miembro',
+        creadoEn: CREADO_EN,
+        actualizadoEn: ACTUALIZADO_EN,
+      }),
+    ).toThrow(EntidadCorrupta);
   });
 });

@@ -71,6 +71,7 @@ lleva su fecha. Buscar por fecha: `Ctrl-F` sobre el año-mes (ej. `2026-05`).
 - **2026-05-25** · [Alias único por paquete (X3): resolución cross-paquete en typecheck y Vitest](#2026-05-25--alias-único-por-paquete-x3-resolución-cross-paquete-en-typecheck-y-vitest)
 - **2026-05-25** · [Modelado de tablas de Etapa 0 (persona, usuario, sesion)](#2026-05-25--modelado-de-tablas-de-etapa-0-persona-usuario-sesion)
 - **2026-05-25** · [Testing de integración contra Postgres real](#2026-05-25--testing-de-integración-contra-postgres-real)
+- **2026-05-26** · [Adapters de efectos en infrastructure (Clock, IdGenerator, TokenGenerator, TokenHasher, Hasher)](#2026-05-26--adapters-de-efectos-en-infrastructure-clock-idgenerator-tokengenerator-tokenhasher-hasher)
 
 ---
 
@@ -2176,6 +2177,119 @@ no contra mocks ni una DB en memoria. Andamiaje:
 archivos `**/*.mjs` (el script `create-test-db.mjs`) tengan `process`,
 `console` y `URL` como globals readonly. Plomería de lint, no decisión de
 fondo.
+
+---
+
+## 2026-05-26 · Adapters de efectos en infrastructure (Clock, IdGenerator, TokenGenerator, TokenHasher, Hasher)
+
+Cierra la implementación de los cinco puertos de efectos cuya firma quedó
+fijada en "Firmas de los puertos de iniciarSesion" (2026-05-22). El layout y
+las dependencias estaban habilitados; faltaba elegir librerías concretas y
+parámetros de seguridad.
+
+**Qué decidimos**:
+
+- **Layout**: los adapters viven en `packages/infrastructure/src/` espejando
+  la estructura por feature de `application` (`shared/` y `auth/`), no bajo
+  `persistence/`. Persistence es su propia rama por la complejidad de schema
+  + migraciones + repos (drizzle); los adapters de efectos son zero-deps de
+  capa y mirror del lado de los puertos es lo más legible.
+  - `infrastructure/src/shared/clock.ts`, `infrastructure/src/shared/id-generator.ts`
+  - `infrastructure/src/auth/{hasher, token-generator, token-hasher}.ts`
+- **Forma**: cada adapter exporta una **instancia const** que satisface el
+  tipo del puerto (`export const clock: Clock = { now: () => new Date() }`).
+  No factory: los adapters no toman deps, así que `crearClock()` sería
+  ceremonia vacía. El día que aparezca una dep (config inyectada), pasa a
+  factory como los repos.
+- **Barrel**: `application/src/index.ts` exporta los tipos de los cinco
+  puertos (`Clock`, `IdGenerator`, `Hasher`, `TokenGenerator`, `TokenHasher`),
+  y `infrastructure/src/index.ts` exporta las cinco instancias. Coherente con
+  cómo ya se expone `Sesion`/`UsuarioRepository`/`SesionRepository`.
+
+**Decisiones por adapter**:
+
+- **Clock** (`shared/clock.ts`): `now()` devuelve `new Date()`. Trivial.
+- **IdGenerator** (`shared/id-generator.ts`): UUID v7 vía paquete `uuid` en
+  versión 14.0.0 (RFC9562). Es el paquete histórico estándar de Node (~100M
+  descargas/semana al momento, mantenido activamente), zero-deps puro JS,
+  con v7 estable desde v10.0.0 (junio 2024). No hay alternativa equivalente
+  en mantenimiento — la otra opción seria (`@paralleldrive/cuid2`) genera un
+  formato distinto y se descartó porque la firma del puerto se contrata como
+  UUID v7 (entrada de firmas del 2026-05-22).
+- **TokenGenerator** (`auth/token-generator.ts`): `crypto.randomBytes(32)` →
+  `toString('base64url')`. **32 bytes = 256 bits** es el estándar para tokens
+  de sesión (más que suficiente contra fuerza bruta; coincide con el tamaño
+  de SHA-256 que después lo hashea). **base64url** porque es URL-safe y
+  cookie-safe sin escape (sin `+`, `/`, `=`); hex sería el doble de largo
+  para la misma entropía, y base64 estándar mete caracteres problemáticos en
+  cookies. Largo resultante: 43 caracteres.
+- **TokenHasher** (`auth/token-hasher.ts`): `crypto.createHash('sha256')` →
+  `digest('hex')`. **Hex** (no base64) porque es lo más portable y legible
+  en logs/debug, y el storage extra (64 vs 44 chars) es irrelevante a esta
+  escala. Síncrono (firma del puerto lo es): SHA-256 sobre un token de 32
+  bytes es del orden de microsegundos, no hay razón para async.
+- **Hasher** (`auth/hasher.ts`): **bcryptjs@3.0.3** (no bcrypt nativo) y
+  **cost factor 12 rounds**. Solo se expone `verify` (firma actual del
+  puerto); `hash` se sumará cuando un caso de uso de creación/cambio de
+  password lo necesite, demand-driven, según la nota explícita de la entrada
+  de firmas del 2026-05-22.
+  - Por qué bcryptjs: zero-deps, sin compilación nativa (sin node-gyp), TS
+    types built-in, compatible con el formato de bcrypt nativo (un hash
+    generado con bcryptjs lo lee bcrypt nativo y viceversa). bcrypt nativo
+    es ~30% más rápido pero esa diferencia es invisible a la escala del
+    proyecto (3-10 usuarios concurrentes) y a cambio mete fricción de build
+    (node-gyp en CI, imagen Docker más pesada, riesgo de fallos por
+    plataforma). Si la perf alguna vez importa, el swap a `bcrypt` es
+    transparente.
+  - Por qué cost 12: standard recomendado actual; ~250ms por hash en hardware
+    promedio, lo que hace caro el ataque por fuerza bruta sin frustrar al
+    usuario en el login. Subirlo en el futuro a medida que mejore el
+    hardware queda como decisión de seguridad explícita en una nueva entrada
+    de la bitácora (ver regla activa sumada a CLAUDE.md).
+  - Se expone como `BCRYPT_COST_ROUNDS = 12` constante exportada con
+    comentario explicativo, no como número mágico inline.
+
+**Dependencias instaladas**: `uuid@14.0.0` y `bcryptjs@3.0.3`, ambas como
+`dependencies` de `@taller/infrastructure`. Las dos traen sus propios tipos
+TS; no hace falta `@types/*`.
+
+**Tests** (todos unitarios, sin Postgres → project `unit` de Vitest):
+
+- Clock: tipo `Date` y rango temporal coherente con la llamada.
+- IdGenerator: formato UUID v7 vía regex (`xxxxxxxx-xxxx-7xxx-[89ab]xxx-xxxxxxxxxxxx`),
+  unicidad sobre 1000 generaciones, monotonicidad (propiedad de v7).
+- TokenGenerator: largo 43 (32 bytes base64url sin padding), alfabeto
+  base64url, unicidad sobre 1000.
+- TokenHasher: largo 64 hex, formato hex, determinismo (mismo input ⇒ mismo
+  output), distintos para distintos inputs, y vector conocido `SHA-256("")`.
+- Hasher: hash de referencia generado con `bcryptjs.hashSync` en el propio
+  test; `verify(passwordCorrecta, hash)` ⇒ true, `verify(otra, hash)` ⇒
+  false.
+
+**Qué descartamos**:
+
+- **uuid v7 con otra librería** (`@paralleldrive/cuid2`, generadores propios):
+  el contrato del puerto pide UUID v7 (firma del 2026-05-22), no otro formato.
+- **uuid v7 a mano** (15-20 líneas con `crypto.randomBytes` + bit twiddling
+  del timestamp): puerto a una pieza criptográfica/RFC implementada por mí;
+  el paquete `uuid` ya está probado contra el RFC y mantenido. Aprendizaje
+  bajo y riesgo de bug sutil alto, no vale la pena para esto.
+- **bcrypt nativo**: más rápido pero a esta escala invisible, y la fricción
+  de build (node-gyp, plataformas, Docker) supera al beneficio. La
+  compatibilidad de formato deja la migración futura abierta sin lock-in.
+- **Argon2**: ya descartado en la decisión de fase de diseño "Hashing de
+  passwords: bcrypt"; no se reabre acá.
+- **Layout `infrastructure/src/adapters/`** o agrupado por tecnología
+  (`crypto/`, `time/`): el primero esconde la estructura por feature; el
+  segundo fragmenta auth en dos lados (un crypto-hasher acá, un crypto-token
+  allá). Mirror de application es el más navegable.
+- **Factory en vez de instancia const**: ceremonia sin pago para adapters
+  sin deps. Cuando aparezca una dep (config inyectada, métricas), se pasa a
+  factory; hoy no aplica.
+- **Encoding hex para el token**: el doble de largo en cookie/URL sin ganar
+  nada; base64url es la elección estándar.
+- **Encoding base64 para el SHA-256**: hex es más legible en logs/queries y
+  el storage extra (20 chars) es insignificante.
 
 ---
 

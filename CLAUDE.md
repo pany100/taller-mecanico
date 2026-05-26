@@ -160,6 +160,12 @@ plantearlo en vez de ignorarla.
   esperar confirmación antes de construir sobre eso.
 - **Ante la duda, preguntar.** Si algo no está claro o admite más de una
   interpretación, consultar antes de avanzar, en vez de elegir una y seguir.
+- **Parámetro de seguridad — bcrypt cost factor**: el valor activo es
+  **12 rounds**, expuesto como `BCRYPT_COST_ROUNDS` desde
+  `@infra/auth/hasher`. Cualquier hasheo nuevo de password debe usar esa
+  constante, nunca un literal. Subir el cost en el futuro es decisión de
+  seguridad: cambiar el valor implica entrada nueva en `DECISIONES.md`,
+  no edición silenciosa.
 
 ---
 
